@@ -1,0 +1,4449 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using AssemblyCSharp.Mod.Xmap;
+
+// Token: 0x02000131 RID: 305
+internal class AutoKichSP
+{
+	// Token: 0x06000D0A RID: 3338 RVA: 0x000C4BE4 File Offset: 0x000C2DE4
+	static AutoKichSP()
+	{
+		AutoKichSP.lastBossBaseKey = -1L;
+		AutoKichSP.lastBossSpawnStamp = 0L;
+		AutoKichSP.bossStuckStartMs = 0L;
+		AutoKichSP.bossReachedOneHp = false;
+		AutoKichSP.lastBossProbeSkillMs = 0L;
+		AutoKichSP.lastObservedMyPower = -1L;
+		AutoKichSP.lastObservedMyPotential = -1L;
+		AutoKichSP.waitingForXmapLoadMs = 0L;
+		AutoKichSP.lastDisguiseEquipTryMs = 0L;
+		AutoKichSP.waitingForFusion = false;
+		AutoKichSP.fusionStartMs = 0L;
+		AutoKichSP.lastHitConfirmedByReward = false;
+		AutoKichSP.lastRewardCheckMs = 0L;
+		AutoKichSP.lastObservedBossHp = -1L;
+		AutoKichSP.lowHpEquippedInvisible = false;
+		AutoKichSP.lowHpNamekUsedSkill18 = false;
+		AutoKichSP.waitingHpCheckAfterHit = false;
+		AutoKichSP.nextCheckBossHpMs = 0L;
+		AutoKichSP.extraRetryUsedForCurrentBoss = false;
+		AutoKichSP.zone2UsedMaps = new List<int>();
+		AutoKichSP.oldDisguiseTemplateId = -1;
+		AutoKichSP.lowHpBossCharId = -1;
+		AutoKichSP.ROUTE_ORDER = new int[]
+		{
+			5,
+			10,
+			13,
+			19,
+			20,
+			27,
+			28,
+			29,
+			30,
+			31,
+			32,
+			33,
+			34,
+			35,
+			36,
+			37,
+			38
+		};
+		AutoKichSP.Enabled = false;
+		AutoKichSP.MAPS = new int[]
+		{
+			5,
+			10,
+			13,
+			19,
+			20,
+			27,
+			28,
+			29,
+			30,
+			31,
+			32,
+			33,
+			34,
+			35,
+			36,
+			37,
+			38
+		};
+		AutoKichSP.isEvading = false;
+		AutoKichSP.lastMeX = int.MinValue;
+		AutoKichSP.lastAutoCmdMs = 0L;
+		AutoKichSP.manualUntilMs = 0L;
+		AutoKichSP.lastBrolyX = int.MinValue;
+		AutoKichSP.lastTeleMs = 0L;
+		AutoKichSP.targetMap = -1;
+		AutoKichSP.targetZone = -1;
+		AutoKichSP.waitBossUntilMs = 0L;
+		AutoKichSP.lastBossUniqueKey = -1L;
+		AutoKichSP.hasHitCurrentBoss = false;
+		AutoKichSP.lastMap = -1;
+		AutoKichSP.lastSwitchMapMs = 0L;
+		AutoKichSP.lastChangeZoneMs = 0L;
+		AutoKichSP.waitUntilMs = 0L;
+		AutoKichSP.random = new Random();
+		AutoKichSP.lastWaitJumpMs = 0L;
+		AutoKichSP.lastHitTryMs = 0L;
+		AutoKichSP.lastAntiDisconnectMoveMs = 0L;
+		AutoKichSP.antiMoveLeft = false;
+		AutoKichSP.lastZoneMap = -1;
+	}
+
+	// Token: 0x06000D0C RID: 3340 RVA: 0x000C4D58 File Offset: 0x000C2F58
+	public static void Update()
+	{
+		if (DataAccount.Type != 1)
+		{
+			return;
+		}
+		if ((DataAccount.Team == 999 || AutoKichSP.IsLockedToSpecificMapZone()) && !AutoKichSP.Enabled)
+		{
+			AutoKichSP.Start();
+		}
+		long num = mSystem.currentTimeMillis();
+		AutoKichSP.HandleHomeChicken(num);
+		if (num < AutoKichSP.nextTickMs)
+		{
+			return;
+		}
+		AutoKichSP.nextTickMs = num + 50L;
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.meDead || @char.cHP <= 0L)
+		{
+			return;
+		}
+		if (Pk9rXmap.IsXmapRunning || @char.statusMe == 14)
+		{
+			return;
+		}
+		if (TileMap.mapID < 0)
+		{
+			return;
+		}
+		if (@char.arrItemBag == null || @char.arrItemBody == null)
+		{
+			return;
+		}
+		if (GameScr.vCharInMap == null)
+		{
+			return;
+		}
+		if (AutoKichSP.IsLockedToSpecificMapZone())
+		{
+			AutoKichSP.ApplyLockedMapZone(num);
+			if (!AutoKichSP.IsAtLockedMapZone())
+			{
+				return;
+			}
+		}
+		if (!AutoKichSP.Enabled)
+		{
+			return;
+		}
+		AutoKichSP.UpdateLowHpProtect(num);
+		if (AutoKichSP.lowHpProtectRunning)
+		{
+			return;
+		}
+		AutoKichSP.AutoEquipKickSP(num);
+		global::Char char2 = AutoKichSP.FindBrolyThuong();
+		global::Char char3 = AutoKichSP.FindSuperBroly();
+		if (char2 != null)
+		{
+			AutoKichSP.ForceFocusOnlyBroly(char2);
+		}
+		else
+		{
+			AutoKichSP.ClearWrongFocusIfNeeded();
+		}
+		if (char2 != null && char2.cHP > 0L && !AutoKichSP.IsEquippedDisguise524525(@char))
+		{
+			AutoKichSP.TryEquipDisguise524525(@char);
+			if (!AutoKichSP.IsEquippedDisguise524525(@char))
+			{
+				GameScr.info1.addInfo("KickSP: chưa mặc được 524/525, vẫn tiếp tục", 0);
+			}
+		}
+		if (char2 != null && char2.cHP > 0L && !global::Char.myCharz().isNhapThe)
+		{
+			if (!AutoKichSP.HasDeTu())
+			{
+				GameScr.info1.addInfo("KickSP: không có Đệ Tử, không thể hợp thể", 0);
+			}
+			else
+			{
+				if (!AutoKichSP.waitingForFusion)
+				{
+					AutoKichSP.waitingForFusion = true;
+					AutoKichSP.fusionStartMs = num;
+					ChucNangPhu.AutoBongTai();
+					GameScr.info1.addInfo("KickSP: chưa hợp thể, dùng Potara và chờ 3s", 0);
+					return;
+				}
+				if (num - AutoKichSP.fusionStartMs < 3000L)
+				{
+					return;
+				}
+				if (!global::Char.myCharz().isNhapThe)
+				{
+					GameScr.info1.addInfo("KickSP: hợp thể thất bại, tiếp tục chờ...", 0);
+					AutoKichSP.fusionStartMs = num;
+					return;
+				}
+				AutoKichSP.waitingForFusion = false;
+			}
+		}
+		if (char2 == null && char3 == null)
+		{
+			if (num < AutoKichSP.waitUntilMs)
+			{
+				return;
+			}
+		}
+		else
+		{
+			AutoKichSP.waitUntilMs = 0L;
+		}
+		if (char3 != null && char3.cHP > 0L && TileMap.zoneID >= 2)
+		{
+			AutoKichSP.BlockMapZoneBecauseOfSuperBroly(TileMap.mapID, TileMap.zoneID, num);
+		}
+		if (char2 != null && char2.cHP > 0L && AutoKichSP.GetBossFullHp(char2) == 16070777L && TileMap.zoneID >= 2)
+		{
+			AutoKichSP.BlockMapZoneBecauseOfSuperBroly(TileMap.mapID, TileMap.zoneID, num);
+		}
+		if (AutoKichSP.ShouldNextMapBecauseOfBoss(char2, char3))
+		{
+			string reason = (char3 != null && char3.cHP > 0L) ? "Gặp Super Broly" : "Broly thường full HP = 16070777";
+			AutoKichSP.GoNextMap(num, reason);
+			return;
+		}
+		if (char2 != null)
+		{
+			if (char2.cHP > 0L && AutoKichSP.GetBossFullHp(char2) != 16070777L)
+			{
+				AutoKichSP.targetMap = TileMap.mapID;
+				AutoKichSP.targetZone = TileMap.zoneID;
+			}
+			if (AutoKichSP.currentBossSeenMs == 0L)
+			{
+				AutoKichSP.currentBossSeenMs = num;
+			}
+			AutoKichSP.waitUntilMs = 0L;
+			AutoKichSP.waitBossUntilMs = num + 480000L;
+			long bossUniqueKey = AutoKichSP.GetBossUniqueKey(char2);
+			if (bossUniqueKey != AutoKichSP.lastBossUniqueKey)
+			{
+				AutoKichSP.pendingFarShot = false;
+				AutoKichSP.pendingCloseAfterTele = false;
+				AutoKichSP.pendingCloseAfterTeleMs = 0L;
+				AutoKichSP.pendingMoveBackAfterClose = false;
+				AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+				AutoKichSP.pendingFarShotAfterMove = false;
+				AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+				AutoKichSP.lastBossUniqueKey = bossUniqueKey;
+				AutoKichSP.hasHitCurrentBoss = false;
+				AutoKichSP.lastHitTryMs = 0L;
+				AutoKichSP.currentBossHitCount = 0;
+				AutoKichSP.lastBossHitMs = 0L;
+				AutoKichSP.lastObservedBossHp = char2.cHP;
+				AutoKichSP.waitingHpCheckAfterHit = false;
+				AutoKichSP.nextCheckBossHpMs = 0L;
+				AutoKichSP.extraRetryUsedForCurrentBoss = false;
+				AutoKichSP.bossStuckStartMs = num;
+				AutoKichSP.bossReachedOneHp = false;
+			}
+			AutoKichSP.UpdateBossExitTimer(char2, num);
+			AutoKichSP.TryBossProbeSkill(char2, num);
+			if (AutoKichSP.hasHitCurrentBoss)
+			{
+				AutoKichSP.UpdateKeepOldDistanceLogic(num, @char, char2);
+				return;
+			}
+			if (!AutoKichSP.pendingCloseAfterTele && !AutoKichSP.pendingMoveBackAfterClose && !AutoKichSP.pendingFarShotAfterMove && !AutoKichSP.pendingFarShot)
+			{
+				if (!AutoKichSP.MoveToOld100PxSpot(@char, char2, num))
+				{
+					return;
+				}
+				if (num - AutoKichSP.lastAutoCmdMs < 200L)
+				{
+					return;
+				}
+			}
+			if (!AutoKichSP.waitingHpCheckAfterHit)
+			{
+				if (AutoKichSP.currentBossHitCount < 1 && num - AutoKichSP.lastBossHitMs >= 450L)
+				{
+					AutoKichSP.lastHitTryMs = num;
+					if (AutoKichSP.HitBossOneTime(char2))
+					{
+						AutoKichSP.currentBossHitCount++;
+						AutoKichSP.lastBossHitMs = num;
+						AutoKichSP.lastObservedBossHp = char2.cHP;
+						AutoKichSP.lastObservedMyPower = AutoKichSP.GetMyPower();
+						AutoKichSP.lastObservedMyPotential = AutoKichSP.GetMyPotential();
+						AutoKichSP.lastHitConfirmedByReward = false;
+						AutoKichSP.waitingHpCheckAfterHit = true;
+						AutoKichSP.nextCheckBossHpMs = num + 450L;
+						AutoKichSP.waitUntilMs = num + 180L;
+						GameScr.info1.addInfo("KickSP: hit boss lần " + AutoKichSP.currentBossHitCount, 0);
+						return;
+					}
+				}
+				return;
+			}
+			if (num < AutoKichSP.nextCheckBossHpMs)
+			{
+				return;
+			}
+			long myPower = AutoKichSP.GetMyPower();
+			long myPotential = AutoKichSP.GetMyPotential();
+			bool flag = false;
+			bool flag2 = false;
+			if (char2 != null && AutoKichSP.lastObservedBossHp >= 0L && char2.cHP < AutoKichSP.lastObservedBossHp)
+			{
+				flag = true;
+			}
+			if (AutoKichSP.lastObservedMyPower >= 0L && myPower > AutoKichSP.lastObservedMyPower)
+			{
+				flag2 = true;
+			}
+			if (AutoKichSP.lastObservedMyPotential >= 0L && myPotential > AutoKichSP.lastObservedMyPotential)
+			{
+				flag2 = true;
+			}
+			AutoKichSP.waitingHpCheckAfterHit = false;
+			if (flag && flag2)
+			{
+				AutoKichSP.lastObservedBossHp = char2.cHP;
+				AutoKichSP.lastObservedMyPower = myPower;
+				AutoKichSP.lastObservedMyPotential = myPotential;
+				AutoKichSP.hasHitCurrentBoss = true;
+				AutoKichSP.waitUntilMs = num + 500L;
+				GameScr.info1.addInfo("KickSP: đã gây sát thương", 0);
+				return;
+			}
+			if (AutoKichSP.currentBossHitCount >= 1 && !AutoKichSP.extraRetryUsedForCurrentBoss && AutoKichSP.RetryAttackIfBossHpNotChanged(char2, num))
+			{
+				AutoKichSP.waitingHpCheckAfterHit = true;
+				AutoKichSP.nextCheckBossHpMs = num + 450L;
+				return;
+			}
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.waitUntilMs = num + 300L;
+			return;
+		}
+		else
+		{
+			long num2 = AutoKichSP.currentBossSeenMs;
+			AutoKichSP.currentBossSeenMs = 0L;
+			AutoKichSP.pendingFarShot = false;
+			AutoKichSP.pendingCloseAfterTele = false;
+			AutoKichSP.pendingCloseAfterTeleMs = 0L;
+			AutoKichSP.pendingMoveBackAfterClose = false;
+			AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+			AutoKichSP.pendingFarShotAfterMove = false;
+			AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+			bool flag3 = AutoKichSP.lastBossUniqueKey != -1L || AutoKichSP.hasHitCurrentBoss;
+			AutoKichSP.lastBossUniqueKey = -1L;
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.lastHitTryMs = 0L;
+			AutoKichSP.currentBossHitCount = 0;
+			AutoKichSP.lastBossHitMs = 0L;
+			AutoKichSP.waitingHpCheckAfterHit = false;
+			AutoKichSP.nextCheckBossHpMs = 0L;
+			AutoKichSP.lastObservedBossHp = -1L;
+			AutoKichSP.lastHitConfirmedByReward = false;
+			if (flag3)
+			{
+				bool flag4 = num2 > 0L && num - num2 <= 40000L;
+				bool flag5 = AutoKichSP.targetMap == TileMap.mapID && AutoKichSP.targetZone == TileMap.zoneID && num2 > 0L && num - num2 <= 3000L;
+				if (flag4 || flag5)
+				{
+					AutoKichSP.waitUntilMs = num + 500L;
+					GameScr.info1.addInfo("KickSP: mất dấu boss tạm thời, chờ lại", 0);
+					return;
+				}
+				AutoKichSP.GoNextMap(num, "Boss chết hoặc biến mất");
+				return;
+			}
+			else
+			{
+				if (AutoKichSP.targetMap == -1)
+				{
+					AutoKichSP.PickNextMap(false);
+					AutoKichSP.waitUntilMs = num + 300L;
+					return;
+				}
+				if (TileMap.mapID != AutoKichSP.targetMap)
+				{
+					if (num - AutoKichSP.lastSwitchMapMs >= 1500L)
+					{
+						AutoKichSP.RunToMap(AutoKichSP.targetMap);
+						AutoKichSP.lastSwitchMapMs = num;
+						AutoKichSP.waitUntilMs = num + 700L;
+					}
+					return;
+				}
+				if (AutoKichSP.targetZone < 2)
+				{
+					AutoKichSP.targetZone = AutoKichSP.GetPreferredZoneForMap(AutoKichSP.targetMap);
+				}
+				if (TileMap.zoneID == 0 || TileMap.zoneID == 1)
+				{
+					if (num - AutoKichSP.lastChangeZoneMs >= 1200L)
+					{
+						if (AutoKichSP.targetZone < 2)
+						{
+							AutoKichSP.targetMap = -1;
+							AutoKichSP.targetZone = -1;
+							AutoKichSP.waitUntilMs = num + 300L;
+							return;
+						}
+						Service.gI().requestChangeZone(AutoKichSP.targetZone, -1);
+						AutoKichSP.lastChangeZoneMs = num;
+						AutoKichSP.waitUntilMs = num + 500L;
+						GameScr.info1.addInfo("KickSP đổi khu: " + AutoKichSP.targetZone, 0);
+					}
+					return;
+				}
+				if (TileMap.zoneID != AutoKichSP.targetZone)
+				{
+					if (num - AutoKichSP.lastChangeZoneMs >= 1200L)
+					{
+						if (AutoKichSP.targetZone < 2)
+						{
+							AutoKichSP.targetMap = -1;
+							AutoKichSP.targetZone = -1;
+							AutoKichSP.waitUntilMs = num + 300L;
+							return;
+						}
+						Service.gI().requestChangeZone(AutoKichSP.targetZone, -1);
+						AutoKichSP.lastChangeZoneMs = num;
+						AutoKichSP.waitUntilMs = num + 500L;
+						GameScr.info1.addInfo("KickSP đổi khu: " + AutoKichSP.targetZone, 0);
+					}
+					return;
+				}
+				if (AutoKichSP.waitBossUntilMs == 0L)
+				{
+					AutoKichSP.waitBossUntilMs = num + 480000L;
+					GameScr.info1.addInfo("KickSP chờ boss 8 phút", 0);
+				}
+				global::Char brolyThuong = AutoKichSP.FindBrolyThuong();
+				global::Char superBroly = AutoKichSP.FindSuperBroly();
+				if (AutoKichSP.ShouldNextMapBecauseOfBoss(brolyThuong, superBroly))
+				{
+					return;
+				}
+				global::Char char4 = AutoKichSP.FindBrolyThuong();
+				global::Char char5 = AutoKichSP.FindSuperBroly();
+				if ((char4 == null || char4.cHP <= 0L) && (char5 == null || char5.cHP <= 0L))
+				{
+					bool flag6 = num - AutoKichSP.lastSwitchMapMs < 1500L;
+					bool flag7 = num - AutoKichSP.lastChangeZoneMs < 1200L;
+					if (flag6 || flag7 || num - AutoKichSP.lastWaitJumpMs >= 2500L)
+					{
+						AutoBroly.NhayCuoiMap();
+						AutoKichSP.lastWaitJumpMs = num;
+						AutoKichSP.waitUntilMs = num + 300L;
+						return;
+					}
+				}
+				else
+				{
+					AutoKichSP.waitUntilMs = 0L;
+				}
+				AutoKichSP.AntiDisconnectMove(num);
+				if (num >= AutoKichSP.waitBossUntilMs)
+				{
+					AutoKichSP.GoNextMap(num, "Quá 8 phút không thấy boss");
+				}
+				return;
+			}
+		}
+	}
+
+	// Token: 0x06000D0D RID: 3341 RVA: 0x0000745B File Offset: 0x0000565B
+	public static void Toggle()
+	{
+		if (!AutoKichSP.Enabled)
+		{
+			AutoKichSP.Start();
+			return;
+		}
+		AutoKichSP.Stop();
+	}
+
+	// Token: 0x06000D0E RID: 3342 RVA: 0x000C55C0 File Offset: 0x000C37C0
+	public static void Start()
+	{
+		if (DataAccount.Type != 1)
+		{
+			return;
+		}
+		long num = mSystem.currentTimeMillis();
+		if (AutoKichSP.Enabled)
+		{
+			return;
+		}
+		if (num - AutoKichSP.lastStartMs < 800L)
+		{
+			return;
+		}
+		AutoKichSP.lastStartMs = num;
+		AutoKichSP.Enabled = true;
+		AutoKichSP.ResetAll();
+		AutoKichSP.nextEquipMs = 0L;
+		AutoKichSP.waitBossUntilMs = 0L;
+		AutoKichSP.nextDisguiseEquipMs = 0L;
+		AutoKichSP.nextReflectEquipMs = 0L;
+		AutoKichSP.AutoEquipKickSP(num);
+		GameScr.info1.addInfo("Auto kicksp: ON", 0);
+		global::Char @char = AutoKichSP.FindBrolyThuong();
+		global::Char char2 = AutoKichSP.FindSuperBroly();
+		if ((@char == null || @char.cHP <= 0L) && (char2 == null || char2.cHP <= 0L))
+		{
+			bool flag = false;
+			for (int i = 0; i < AutoKichSP.MAPS.Length; i++)
+			{
+				if (AutoKichSP.MAPS[i] == TileMap.mapID)
+				{
+					flag = true;
+					break;
+				}
+			}
+			if (flag)
+			{
+				AutoKichSP.targetMap = TileMap.mapID;
+				AutoKichSP.targetZone = AutoKichSP.GetPreferredZoneForMap(TileMap.mapID);
+				AutoKichSP.waitBossUntilMs = 0L;
+				AutoKichSP.waitUntilMs = num + 100L;
+				AutoKichSP.lastBossUniqueKey = -1L;
+				AutoKichSP.hasHitCurrentBoss = false;
+				AutoKichSP.currentBossHitCount = 0;
+				AutoKichSP.lastBossHitMs = 0L;
+				GameScr.info1.addInfo("KickSP: ON tại map hiện tại, giữ nguyên map/khu đang đứng", 0);
+				global::Char char3 = AutoKichSP.FindBrolyThuong();
+				global::Char char4 = AutoKichSP.FindSuperBroly();
+				if ((char3 == null || char3.cHP <= 0L) && (char4 == null || char4.cHP <= 0L))
+				{
+					AutoBroly.NhayCuoiMap();
+					AutoKichSP.lastWaitJumpMs = num;
+					AutoKichSP.waitUntilMs = num + 300L;
+					GameScr.info1.addInfo("KickSP: khởi động, nhảy cuối map ngay", 0);
+				}
+				return;
+			}
+			AutoKichSP.PickNextMap(true);
+			if (AutoKichSP.targetMap != -1 && AutoKichSP.targetZone >= 2)
+			{
+				AutoKichSP.BeginMoveToSelectedMap(num);
+			}
+			return;
+		}
+		else
+		{
+			if (AutoKichSP.ShouldNextMapBecauseOfBoss(@char, char2))
+			{
+				AutoKichSP.PickNextMap(true);
+				if (AutoKichSP.targetMap != -1 && AutoKichSP.targetZone >= 2)
+				{
+					AutoKichSP.BeginMoveToSelectedMap(num);
+				}
+				return;
+			}
+			AutoKichSP.targetMap = TileMap.mapID;
+			AutoKichSP.targetZone = TileMap.zoneID;
+			AutoKichSP.waitBossUntilMs = num + 480000L;
+			AutoKichSP.waitUntilMs = num + 100L;
+			AutoKichSP.lastBossUniqueKey = -1L;
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.currentBossHitCount = 0;
+			AutoKichSP.lastBossHitMs = 0L;
+			GameScr.info1.addInfo("KickSP: thấy Broly cùng khu, xử lý luôn", 0);
+			return;
+		}
+	}
+
+	// Token: 0x06000D0F RID: 3343 RVA: 0x000C57D8 File Offset: 0x000C39D8
+	public static void Stop()
+	{
+		if (DataAccount.Team == 999 || AutoKichSP.IsLockedToSpecificMapZone())
+		{
+			return;
+		}
+		if (DataAccount.Type != 1)
+		{
+			return;
+		}
+		long num = mSystem.currentTimeMillis();
+		if (!AutoKichSP.Enabled)
+		{
+			return;
+		}
+		if (num - AutoKichSP.lastStartMs < 1200L)
+		{
+			return;
+		}
+		if (num - AutoKichSP.lastStopMs < 500L)
+		{
+			return;
+		}
+		AutoKichSP.lastStopMs = num;
+		AutoKichSP.Enabled = false;
+		AutoKichSP.zone2UsedMaps.Clear();
+		AutoKichSP.targetMap = -1;
+		AutoKichSP.targetZone = -1;
+		AutoKichSP.waitBossUntilMs = 0L;
+		AutoKichSP.lastBossUniqueKey = -1L;
+		AutoKichSP.hasHitCurrentBoss = false;
+		AutoKichSP.lastMap = -1;
+		AutoKichSP.lastWaitJumpMs = 0L;
+		AutoKichSP.lastHitTryMs = 0L;
+		AutoKichSP.currentBossHitCount = 0;
+		AutoKichSP.pendingCloseAfterTele = false;
+		AutoKichSP.waitingForXmapLoadMs = 0L;
+		AutoKichSP.lastDisguiseEquipTryMs = 0L;
+		AutoKichSP.pendingCloseAfterTeleMs = 0L;
+		AutoKichSP.pendingMoveBackAfterClose = false;
+		AutoKichSP.lowHpNamekUsedSkill18 = false;
+		AutoKichSP.lowHpEquippedInvisible = false;
+		AutoKichSP.waitingForFusion = false;
+		AutoKichSP.fusionStartMs = 0L;
+		AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+		AutoKichSP.currentBossSeenMs = 0L;
+		AutoKichSP.blockedSuperMapZones.Clear();
+		AutoKichSP.pendingFarShotAfterMove = false;
+		AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+		AutoKichSP.lastObservedBossHp = -1L;
+		AutoKichSP.waitingHpCheckAfterHit = false;
+		AutoKichSP.pendingFarShot = false;
+		AutoKichSP.nextCheckBossHpMs = 0L;
+		AutoKichSP.extraRetryUsedForCurrentBoss = false;
+		AutoKichSP.lastObservedMyPower = -1L;
+		AutoKichSP.lastObservedMyPotential = -1L;
+		AutoKichSP.lastHitConfirmedByReward = false;
+		AutoKichSP.lastRewardCheckMs = 0L;
+		AutoKichSP.lastBossHitMs = 0L;
+		AutoKichSP.lastAntiDisconnectMoveMs = 0L;
+		AutoKichSP.antiMoveLeft = false;
+		AutoKichSP.bossStuckStartMs = 0L;
+		AutoKichSP.bossReachedOneHp = false;
+		AutoKichSP.lastBossProbeSkillMs = 0L;
+		AutoKichSP.lastZoneMap = -1;
+		AutoKichSP.lastSwitchMapMs = 0L;
+		AutoKichSP.lastChangeZoneMs = 0L;
+		AutoKichSP.waitUntilMs = 0L;
+		GameScr.info1.addInfo("Auto kicksp: OFF", 0);
+	}
+
+	// Token: 0x06000D10 RID: 3344 RVA: 0x000C5970 File Offset: 0x000C3B70
+	private static global::Char FindBrolyThuong()
+	{
+		if (GameScr.vCharInMap == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < GameScr.vCharInMap.size(); i++)
+		{
+			global::Char @char = (global::Char)GameScr.vCharInMap.elementAt(i);
+			if (@char != null && @char.cHP > 0L && @char.cName != null && @char.cName.Contains("Broly") && !@char.cName.Contains("Super"))
+			{
+				return @char;
+			}
+		}
+		return null;
+	}
+
+	// Token: 0x06000D11 RID: 3345 RVA: 0x000C59E8 File Offset: 0x000C3BE8
+	private static Skill GetSkillKich()
+	{
+		if (GameScr.onScreenSkill == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < GameScr.onScreenSkill.Length; i++)
+		{
+			Skill skill = GameScr.onScreenSkill[i];
+			if (skill != null && skill.template != null && (skill.template.id == 1 || skill.template.id == 3 || skill.template.id == 5))
+			{
+				return skill;
+			}
+		}
+		return null;
+	}
+
+	// Token: 0x06000D12 RID: 3346 RVA: 0x000C5A50 File Offset: 0x000C3C50
+	private static bool HitBossOneTime(global::Char boss)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || boss == null || boss.cHP <= 0L)
+		{
+			AutoKichSP.pendingFarShot = false;
+			AutoKichSP.pendingCloseAfterTele = false;
+			AutoKichSP.pendingCloseAfterTeleMs = 0L;
+			AutoKichSP.pendingMoveBackAfterClose = false;
+			AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+			AutoKichSP.pendingFarShotAfterMove = false;
+			AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+			return false;
+		}
+		MyVector myVector = new MyVector();
+		myVector.addElement(boss);
+		Skill skillById;
+		Skill skillById2;
+		if (@char.cgender == 2)
+		{
+			skillById = AutoKichSP.GetSkillById(4);
+			skillById2 = AutoKichSP.GetSkillById(5);
+		}
+		else if (@char.cgender == 0)
+		{
+			skillById = AutoKichSP.GetSkillById(0);
+			skillById2 = AutoKichSP.GetSkillById(1);
+		}
+		else
+		{
+			skillById = AutoKichSP.GetSkillById(2);
+			skillById2 = AutoKichSP.GetSkillById(3);
+		}
+		if (skillById == null || skillById2 == null)
+		{
+			AutoKichSP.pendingFarShot = false;
+			AutoKichSP.pendingCloseAfterTele = false;
+			AutoKichSP.pendingCloseAfterTeleMs = 0L;
+			AutoKichSP.pendingMoveBackAfterClose = false;
+			AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+			AutoKichSP.pendingFarShotAfterMove = false;
+			AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+			return false;
+		}
+		@char.npcFocus = null;
+		@char.mobFocus = null;
+		@char.charFocus = boss;
+		long num = mSystem.currentTimeMillis();
+		if (AutoKichSP.pendingCloseAfterTele)
+		{
+			if (num < AutoKichSP.pendingCloseAfterTeleMs)
+			{
+				AutoKichSP.waitUntilMs = AutoKichSP.pendingCloseAfterTeleMs;
+				return false;
+			}
+			@char.npcFocus = null;
+			@char.mobFocus = null;
+			@char.charFocus = boss;
+			GameScr.gI().doSelectSkill(skillById, true);
+			Service.gI().sendPlayerAttack(new MyVector(), myVector, -1);
+			AutoKichSP.lastAutoCmdMs = mSystem.currentTimeMillis();
+			AutoKichSP.pendingCloseAfterTele = false;
+			AutoKichSP.pendingCloseAfterTeleMs = 0L;
+			AutoKichSP.pendingMoveBackAfterClose = true;
+			AutoKichSP.pendingMoveBackAfterCloseMs = num + 1000L;
+			AutoKichSP.waitUntilMs = num + 1020L;
+			return false;
+		}
+		else if (AutoKichSP.pendingMoveBackAfterClose)
+		{
+			if (num < AutoKichSP.pendingMoveBackAfterCloseMs)
+			{
+				AutoKichSP.waitUntilMs = AutoKichSP.pendingMoveBackAfterCloseMs;
+				return false;
+			}
+			AutoKichSP.pendingMoveBackAfterClose = false;
+			AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+			AutoKichSP.MoveBackTo100PxByTerrain(@char, boss, num);
+			AutoKichSP.pendingFarShotAfterMove = true;
+			AutoKichSP.pendingFarShotAfterMoveMs = num + 900L;
+			AutoKichSP.waitUntilMs = num + 920L;
+			return false;
+		}
+		else
+		{
+			if (AutoKichSP.pendingFarShotAfterMove)
+			{
+				AutoKichSP.MoveBackTo100PxByTerrain(@char, boss, num);
+				if (num < AutoKichSP.pendingFarShotAfterMoveMs)
+				{
+					AutoKichSP.waitUntilMs = AutoKichSP.pendingFarShotAfterMoveMs;
+					return false;
+				}
+				AutoKichSP.pendingFarShotAfterMove = false;
+				AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+				AutoKichSP.pendingFarShot = true;
+			}
+			if (!AutoKichSP.pendingFarShot)
+			{
+				int num2 = AutoKichSP.FindSafeStandXAroundBoss(@char, boss, 100);
+				if (num2 < 0)
+				{
+					num2 = AutoKichSP.CalcOldKeepDistanceX(@char, boss, 100);
+				}
+				num2 = AutoKichSP.ClampMapX(num2);
+				int num3 = AutoKichSP.FindGroundYNearX(num2, @char.cy);
+				if (AutoKichSP.Abs(@char.cx - num2) > 20 || AutoKichSP.Abs(@char.cy - num3) > 36)
+				{
+					AutoKichSP.MoveByTerrainToX(@char, num2, num);
+					AutoKichSP.waitUntilMs = num + 120L;
+					return false;
+				}
+				int y = AutoKichSP.FindGroundYNearX(boss.cx, boss.cy);
+				KsSupper.TelePortTo(boss.cx, y);
+				AutoKichSP.lastTeleMs = num;
+				AutoKichSP.lastAutoCmdMs = num;
+				AutoKichSP.pendingCloseAfterTele = true;
+				AutoKichSP.pendingCloseAfterTeleMs = num + 1500L;
+				AutoKichSP.waitUntilMs = num + 1520L;
+				return false;
+			}
+			else
+			{
+				if (!AutoKichSP.MoveBackTo100PxByTerrain(@char, boss, num))
+				{
+					AutoKichSP.waitUntilMs = num + 120L;
+					return false;
+				}
+				@char.npcFocus = null;
+				@char.mobFocus = null;
+				@char.charFocus = boss;
+				GameScr.gI().doSelectSkill(skillById2, true);
+				Service.gI().sendPlayerAttack(new MyVector(), myVector, -1);
+				AutoKichSP.lastAutoCmdMs = mSystem.currentTimeMillis();
+				AutoKichSP.waitUntilMs = AutoKichSP.lastAutoCmdMs + 180L;
+				AutoKichSP.pendingFarShot = false;
+				return true;
+			}
+		}
+	}
+
+	// Token: 0x06000D13 RID: 3347 RVA: 0x000C5D94 File Offset: 0x000C3F94
+	private static bool MoveToOld100PxSpot(global::Char me, global::Char boss, long now)
+	{
+		if (me == null || boss == null || boss.cHP <= 0L)
+		{
+			return false;
+		}
+		int num = AutoKichSP.FindSafeStandXAroundBoss(me, boss, 100);
+		if (num < 0)
+		{
+			num = AutoKichSP.CalcOldKeepDistanceX(me, boss, 100);
+		}
+		num = AutoKichSP.ClampMapX(num);
+		int num2 = AutoKichSP.FindGroundYNearX(num, me.cy);
+		int num3 = AutoKichSP.Abs(me.cx - num);
+		int num4 = AutoKichSP.Abs(me.cy - num2);
+		if (num3 <= 20 && num4 <= 36)
+		{
+			return true;
+		}
+		AutoKichSP.MoveByTerrainToX(me, num, now);
+		if (AutoKichSP.IsCornered(me))
+		{
+			if (num3 <= 20)
+			{
+				AutoKichSP.TryTeleportCrossBoss(me, boss, now, 100);
+			}
+			AutoKichSP.waitUntilMs = now + 120L;
+			return false;
+		}
+		AutoKichSP.waitUntilMs = now + 120L;
+		return false;
+	}
+
+	// Token: 0x06000D14 RID: 3348 RVA: 0x000C5E40 File Offset: 0x000C4040
+	private static void GoNextMap(long now, string reason)
+	{
+		AutoKichSP.pendingFarShot = false;
+		AutoKichSP.pendingCloseAfterTele = false;
+		AutoKichSP.pendingCloseAfterTeleMs = 0L;
+		AutoKichSP.pendingMoveBackAfterClose = false;
+		AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+		AutoKichSP.pendingFarShotAfterMove = false;
+		AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+		if (AutoKichSP.IsLockedToSpecificMapZone())
+		{
+			AutoKichSP.lastBossUniqueKey = -1L;
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.lastHitTryMs = 0L;
+			AutoKichSP.currentBossHitCount = 0;
+			AutoKichSP.lastBossHitMs = 0L;
+			AutoKichSP.waitBossUntilMs = now + 480000L;
+			AutoKichSP.waitUntilMs = now + 500L;
+			GameScr.info1.addInfo("KickSP lock: không đổi map vì " + reason, 0);
+			return;
+		}
+		AutoKichSP.PickNextMap(false);
+		if (AutoKichSP.targetMap == -1)
+		{
+			AutoKichSP.waitUntilMs = now + 500L;
+			return;
+		}
+		AutoKichSP.lastBossUniqueKey = -1L;
+		AutoKichSP.hasHitCurrentBoss = false;
+		AutoKichSP.lastHitTryMs = 0L;
+		AutoKichSP.currentBossHitCount = 0;
+		AutoKichSP.lastBossHitMs = 0L;
+		AutoKichSP.waitBossUntilMs = 0L;
+		AutoKichSP.isEvading = false;
+		AutoKichSP.lastMeX = int.MinValue;
+		AutoKichSP.lastBrolyX = int.MinValue;
+		AutoKichSP.lastTeleMs = 0L;
+		AutoKichSP.manualUntilMs = 0L;
+		AutoKichSP.nextMoveMs = 0L;
+		AutoKichSP.nextEmergencyMs = 0L;
+		GameScr.info1.addInfo("KickSP đổi map: " + reason, 0);
+		AutoKichSP.BeginMoveToSelectedMap(now);
+	}
+
+	// Token: 0x06000D15 RID: 3349 RVA: 0x000C5F6C File Offset: 0x000C416C
+	private static void PickNextMap(bool firstPick)
+	{
+		int num;
+		int num2;
+		if (AutoKichSP.TryGetLockedMapZone(out num, out num2))
+		{
+			AutoKichSP.lastMap = AutoKichSP.targetMap;
+			AutoKichSP.targetMap = num;
+			AutoKichSP.targetZone = num2;
+			AutoKichSP.waitBossUntilMs = 0L;
+			AutoKichSP.lastBossUniqueKey = -1L;
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.currentBossHitCount = 0;
+			AutoKichSP.lastBossHitMs = 0L;
+			GameScr.info1.addInfo(string.Concat(new object[]
+			{
+				"KickSP lock: ",
+				num,
+				"|",
+				num2
+			}), 0);
+			return;
+		}
+		long num3 = mSystem.currentTimeMillis();
+		int mapID = TileMap.mapID;
+		if (mapID >= 0)
+		{
+			try
+			{
+				if (XmapData.Instance() != null && XmapData.Instance().MyLinkMaps == null)
+				{
+					long num4 = mSystem.currentTimeMillis();
+					if (AutoKichSP.waitingForXmapLoadMs == 0L)
+					{
+						AutoKichSP.waitingForXmapLoadMs = num4;
+						XmapData.Instance().LoadLinkMaps();
+						AutoKichSP.waitUntilMs = num4 + 500L;
+						GameScr.info1.addInfo("KickSP: chờ load link map", 0);
+						return;
+					}
+					if (num4 - AutoKichSP.waitingForXmapLoadMs <= 5000L)
+					{
+						AutoKichSP.waitUntilMs = num4 + 500L;
+						return;
+					}
+					AutoKichSP.waitingForXmapLoadMs = 0L;
+					GameScr.info1.addInfo("KickSP: load Xmap timeout, dùng route mặc định", 0);
+					int nearestMap = AutoKichSP.GetNearestMap(TileMap.mapID, -1);
+					if (nearestMap != -1)
+					{
+						AutoKichSP.targetMap = nearestMap;
+						AutoKichSP.targetZone = AutoKichSP.GetPreferredZoneForMap(nearestMap);
+						AutoKichSP.waitUntilMs = num4 + 500L;
+						return;
+					}
+					AutoKichSP.targetMap = -1;
+					AutoKichSP.targetZone = -1;
+					AutoKichSP.waitUntilMs = num4 + 500L;
+					return;
+				}
+			}
+			catch
+			{
+			}
+		}
+		bool flag = false;
+		for (int i = 0; i < AutoKichSP.MAPS.Length; i++)
+		{
+			if (AutoKichSP.MAPS[i] == mapID)
+			{
+				flag = true;
+				break;
+			}
+		}
+		if (firstPick && flag)
+		{
+			int num5 = AutoKichSP.GetPreferredZoneForMapNotBlocked(mapID, false, num3);
+			if (num5 < 2)
+			{
+				num5 = AutoKichSP.GetPreferredZoneForMap(mapID);
+			}
+			if (num5 < 2)
+			{
+				num5 = 2;
+			}
+			AutoKichSP.lastMap = AutoKichSP.targetMap;
+			AutoKichSP.targetMap = mapID;
+			AutoKichSP.targetZone = num5;
+			AutoKichSP.waitBossUntilMs = 0L;
+			AutoKichSP.lastBossUniqueKey = -1L;
+			AutoKichSP.hasHitCurrentBoss = false;
+			AutoKichSP.currentBossHitCount = 0;
+			AutoKichSP.lastBossHitMs = 0L;
+			GameScr.info1.addInfo(string.Concat(new object[]
+			{
+				"KickSP chọn map: ",
+				mapID,
+				" | zone: ",
+				num5,
+				" | first pick giữ map hiện tại"
+			}), 0);
+			return;
+		}
+		List<int> list = new List<int>();
+		if (flag)
+		{
+			if (AutoKichSP.random.Next(100) < 30)
+			{
+				list.Add(mapID);
+			}
+			int nearestMapByXmap = AutoKichSP.GetNearestMapByXmap(mapID, -1);
+			if (nearestMapByXmap != -1 && nearestMapByXmap != mapID)
+			{
+				list.Add(nearestMapByXmap);
+			}
+			if (!list.Contains(mapID))
+			{
+				list.Add(mapID);
+			}
+			int[] mapsSortedByRouteDistance = AutoKichSP.GetMapsSortedByRouteDistance(mapID, -1);
+			for (int j = 0; j < mapsSortedByRouteDistance.Length; j++)
+			{
+				if (!list.Contains(mapsSortedByRouteDistance[j]))
+				{
+					list.Add(mapsSortedByRouteDistance[j]);
+				}
+			}
+		}
+		else
+		{
+			if (flag)
+			{
+				list.Add(mapID);
+			}
+			int nearestMapByXmap2 = AutoKichSP.GetNearestMapByXmap(mapID, -1);
+			if (nearestMapByXmap2 != -1 && nearestMapByXmap2 != mapID)
+			{
+				list.Add(nearestMapByXmap2);
+			}
+			if (flag && !list.Contains(mapID))
+			{
+				list.Add(mapID);
+			}
+			int[] mapsSortedByRouteDistance2 = AutoKichSP.GetMapsSortedByRouteDistance(mapID, -1);
+			for (int k = 0; k < mapsSortedByRouteDistance2.Length; k++)
+			{
+				if (!list.Contains(mapsSortedByRouteDistance2[k]))
+				{
+					list.Add(mapsSortedByRouteDistance2[k]);
+				}
+			}
+		}
+		List<int> list2 = new List<int>();
+		for (int l = 0; l < list.Count; l++)
+		{
+			int num6 = list[l];
+			bool flag2 = false;
+			for (int m = 0; m < list2.Count; m++)
+			{
+				if (list2[m] == num6)
+				{
+					flag2 = true;
+					break;
+				}
+			}
+			if (!flag2)
+			{
+				list2.Add(num6);
+			}
+		}
+		for (int n = 0; n < list2.Count; n++)
+		{
+			int num7 = list2[n];
+			if (num7 != -1)
+			{
+				bool flag3 = !firstPick && num7 == mapID && flag && n == 0 && list2.Count > 0 && list2[0] == mapID;
+				int preferredZoneForMapNotBlocked = AutoKichSP.GetPreferredZoneForMapNotBlocked(num7, flag3, num3);
+				if (preferredZoneForMapNotBlocked >= 2)
+				{
+					AutoKichSP.lastMap = AutoKichSP.targetMap;
+					AutoKichSP.targetMap = num7;
+					AutoKichSP.targetZone = preferredZoneForMapNotBlocked;
+					AutoKichSP.waitBossUntilMs = 0L;
+					AutoKichSP.lastBossUniqueKey = -1L;
+					AutoKichSP.hasHitCurrentBoss = false;
+					AutoKichSP.currentBossHitCount = 0;
+					AutoKichSP.lastBossHitMs = 0L;
+					string text;
+					if (firstPick)
+					{
+						text = " | first pick";
+					}
+					else if (flag3)
+					{
+						text = " | ở lại map => random khu";
+					}
+					else
+					{
+						text = " | chuyển map => ưu tiên khu";
+					}
+					if (AutoKichSP.IsMapZoneBlockedBecauseOfSuperBroly(num7, 2, num3) && preferredZoneForMapNotBlocked != 2)
+					{
+						text += " | khu 2 bị block 2p";
+					}
+					GameScr.info1.addInfo(string.Concat(new object[]
+					{
+						"KickSP chọn map: ",
+						num7,
+						" | zone: ",
+						preferredZoneForMapNotBlocked,
+						text
+					}), 0);
+					return;
+				}
+			}
+		}
+		AutoKichSP.targetMap = -1;
+		AutoKichSP.targetZone = -1;
+		AutoKichSP.waitUntilMs = num3 + 500L;
+		GameScr.info1.addInfo("KickSP: chưa có map/zone hợp lệ vì các khu đang block Super", 0);
+	}
+
+	// Token: 0x06000D16 RID: 3350 RVA: 0x000C6484 File Offset: 0x000C4684
+	private static void RunToMap(int mapId)
+	{
+		string text = null;
+		try
+		{
+			if (TileMap.mapNames != null && mapId >= 0 && mapId < TileMap.mapNames.Length)
+			{
+				text = TileMap.mapNames[mapId];
+			}
+		}
+		catch
+		{
+			text = null;
+		}
+		int num = -1;
+		if (!string.IsNullOrEmpty(text))
+		{
+			try
+			{
+				num = XmapData.GetIdMapFromPanelXmap(text);
+			}
+			catch
+			{
+				num = -1;
+			}
+		}
+		if (num < 0)
+		{
+			num = mapId;
+		}
+		GameScr.info1.addInfo(string.Concat(new object[]
+		{
+			"KickSP đi map: ",
+			string.IsNullOrEmpty(text) ? ("map " + mapId) : text,
+			" | mapId=",
+			mapId,
+			" | xmapId=",
+			num
+		}), 0);
+		XmapController.StartRunToMapId(num);
+	}
+
+	// Token: 0x06000D17 RID: 3351 RVA: 0x000C6558 File Offset: 0x000C4758
+	private static int GetNearestMap(int currentMap, int excludeMap = -1)
+	{
+		List<int> list = new List<int>();
+		int num = int.MaxValue;
+		bool flag = XmapData.Instance() != null && XmapData.Instance().MyLinkMaps != null;
+		foreach (int num2 in AutoKichSP.MAPS)
+		{
+			if (num2 != excludeMap && num2 != currentMap)
+			{
+				if (flag)
+				{
+					List<int> list2 = XmapAlgorithm.FindWay(currentMap, num2);
+					if (list2 != null && list2.Count > 1)
+					{
+						int num3 = list2.Count - 1;
+						if (num3 < num)
+						{
+							num = num3;
+							list.Clear();
+							list.Add(num2);
+						}
+						else if (num3 == num)
+						{
+							list.Add(num2);
+						}
+					}
+				}
+				else
+				{
+					int num4 = System.Math.Abs(num2 - currentMap);
+					if (num4 < num)
+					{
+						num = num4;
+						list.Clear();
+						list.Add(num2);
+					}
+					else if (num4 == num)
+					{
+						list.Add(num2);
+					}
+				}
+			}
+		}
+		if (list.Count == 0)
+		{
+			foreach (int num5 in AutoKichSP.MAPS)
+			{
+				if (num5 != excludeMap)
+				{
+					return num5;
+				}
+			}
+			return currentMap;
+		}
+		return list[new Random().Next(list.Count)];
+	}
+
+	// Token: 0x06000D18 RID: 3352 RVA: 0x000C6680 File Offset: 0x000C4880
+	private static int GetRandomZoneExclude01()
+	{
+		int num = 0;
+		try
+		{
+			if (GameScr.gI().zones != null)
+			{
+				num = GameScr.gI().zones.Length;
+			}
+		}
+		catch
+		{
+			num = 0;
+		}
+		if (num >= 3)
+		{
+			int[] array = new int[num - 2];
+			int num2 = 0;
+			for (int i = 2; i < num; i++)
+			{
+				array[num2++] = i;
+			}
+			return array[AutoKichSP.random.Next(array.Length)];
+		}
+		return 2 + AutoKichSP.random.Next(8);
+	}
+
+	// Token: 0x06000D19 RID: 3353 RVA: 0x000C6700 File Offset: 0x000C4900
+	private static long GetBossFullHp(global::Char boss)
+	{
+		if (boss == null)
+		{
+			return -1L;
+		}
+		object obj = AutoKichSP.TryGetFieldValue(boss, "cHPFull");
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(boss, "cMaxHP");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(boss, "cHPGoc");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(boss, "cHPFull");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(boss, "cMaxHP");
+		}
+		if (obj == null)
+		{
+			return -1L;
+		}
+		long result;
+		try
+		{
+			result = Convert.ToInt64(obj);
+		}
+		catch
+		{
+			result = -1L;
+		}
+		return result;
+	}
+
+	// Token: 0x06000D1A RID: 3354 RVA: 0x000C6784 File Offset: 0x000C4984
+	private static long GetBossUniqueKey(global::Char boss)
+	{
+		if (boss == null)
+		{
+			return -1L;
+		}
+		long num = -1L;
+		object obj = AutoKichSP.TryGetFieldValue(boss, "charID");
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(boss, "charId");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(boss, "charID");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(boss, "charId");
+		}
+		if (obj != null)
+		{
+			try
+			{
+				num = Convert.ToInt64(obj);
+			}
+			catch
+			{
+				num = -1L;
+			}
+		}
+		long num2 = (AutoKichSP.currentBossSeenMs > 0L) ? AutoKichSP.currentBossSeenMs : mSystem.currentTimeMillis();
+		DateTime dateTime = new DateTime(1970, 1, 1).AddMilliseconds((double)num2);
+		long num3 = num2 % 1000L;
+		long num4 = (long)dateTime.Second;
+		long num5 = (long)dateTime.Minute;
+		long num6 = (long)dateTime.Day;
+		long num7 = (long)dateTime.Month;
+		long num8 = (long)dateTime.Year;
+		long num9 = (long)((dateTime.Year - 1) / 100 + 1);
+		long num10 = num3 + num4 * 1000L + num5 * 100000L + num6 * 10000000L + num7 * 1000000000L + num8 * 100000000000L + num9 * 100000000000000L;
+		long num11 = (long)(TileMap.mapID + 1) * 1000000000000000L;
+		long num12 = (long)(TileMap.zoneID + 1) * 10000000000000L;
+		long num13 = (num >= 0L) ? (num % 1000000L * 1000000L) : 999999000000L;
+		return num11 + num12 + num13 + num10;
+	}
+
+	// Token: 0x06000D1B RID: 3355 RVA: 0x000C6904 File Offset: 0x000C4B04
+	private static object TryGetFieldValue(object obj, string fieldName)
+	{
+		try
+		{
+			FieldInfo field = obj.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+			if (field != null)
+			{
+				return field.GetValue(obj);
+			}
+		}
+		catch
+		{
+		}
+		return null;
+	}
+
+	// Token: 0x06000D1C RID: 3356 RVA: 0x000C6948 File Offset: 0x000C4B48
+	private static object TryGetPropertyValue(object obj, string propName)
+	{
+		try
+		{
+			PropertyInfo property = obj.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+			if (property != null)
+			{
+				return property.GetValue(obj, null);
+			}
+		}
+		catch
+		{
+		}
+		return null;
+	}
+
+	// Token: 0x06000D1D RID: 3357 RVA: 0x000C698C File Offset: 0x000C4B8C
+	private static void UpdateKeepOldDistanceLogic(long num, global::Char @char, global::Char char2)
+	{
+		if (@char == null || @char.meDead || @char.cHP <= 0L)
+		{
+			return;
+		}
+		if (AutoKichSP.lastMeX != -2147483648)
+		{
+			int num2 = @char.cx - AutoKichSP.lastMeX;
+			if (num2 < 0)
+			{
+				num2 = -num2;
+			}
+			if (num2 >= 18 && num - AutoKichSP.lastAutoCmdMs > 200L)
+			{
+				AutoKichSP.manualUntilMs = num + 700L;
+			}
+		}
+		AutoKichSP.lastMeX = @char.cx;
+		if (char2 == null)
+		{
+			AutoKichSP.isEvading = false;
+			AutoKichSP.lastBrolyX = int.MinValue;
+			return;
+		}
+		int num3 = @char.cx - char2.cx;
+		if (num3 < 0)
+		{
+			num3 = -num3;
+		}
+		bool flag = false;
+		if (AutoKichSP.lastBrolyX != -2147483648)
+		{
+			int num4 = char2.cx - AutoKichSP.lastBrolyX;
+			if (num4 < 0)
+			{
+				num4 = -num4;
+			}
+			if (num4 >= 200)
+			{
+				flag = true;
+				AutoKichSP.lastTeleMs = num;
+			}
+		}
+		AutoKichSP.lastBrolyX = char2.cx;
+		if ((flag || num - AutoKichSP.lastTeleMs <= 650L || num3 <= 70) && num >= AutoKichSP.nextEmergencyMs)
+		{
+			int num5 = AutoKichSP.FindSafeStandXAroundBoss(@char, char2, 100);
+			if (num5 < 0)
+			{
+				num5 = AutoKichSP.CalcOldKeepDistanceX(@char, char2, 100);
+			}
+			num5 = AutoKichSP.ClampMapX(num5);
+			int num6 = AutoKichSP.FindGroundYNearX(num5, @char.cy);
+			if (AutoKichSP.IsCornered(@char) && num3 <= 200)
+			{
+				int num7 = (@char.cx < char2.cx) ? (char2.cx + 100) : (char2.cx - 100);
+				num7 = AutoKichSP.ClampMapX(num7);
+				int num8 = AutoKichSP.FindGroundYNearX(num7, @char.cy);
+				if (AutoKichSP.Abs(@char.cx - num7) > 42)
+				{
+					AutoKichSP.MoveByTerrainToX(@char, num7, num);
+					AutoKichSP.waitUntilMs = num + 120L;
+					return;
+				}
+				if (AutoKichSP.TryTeleportCrossBoss(@char, char2, num, 100))
+				{
+					AutoKichSP.nextEmergencyMs = num + 450L;
+					return;
+				}
+				if (AutoKichSP.CanStandAtX(num7, num8, 60) && !AutoKichSP.IsPortalPosition(num7, num8))
+				{
+					KsSupper.TelePortTo(num7, num8);
+					AutoKichSP.lastTeleMs = num;
+					AutoKichSP.lastAutoCmdMs = num;
+					AutoKichSP.nextEmergencyMs = num + 450L;
+					return;
+				}
+			}
+			if ((AutoKichSP.IsCornered(@char) || AutoKichSP.Abs(num6 - @char.cy) >= 84) && AutoKichSP.TryTeleportCrossBoss(@char, char2, num, 100))
+			{
+				AutoKichSP.nextEmergencyMs = num + 450L;
+				return;
+			}
+			if (AutoKichSP.MoveByTerrainToX(@char, num5, num))
+			{
+				AutoKichSP.nextEmergencyMs = num + 350L;
+			}
+			return;
+		}
+		else
+		{
+			if (num < AutoKichSP.manualUntilMs)
+			{
+				return;
+			}
+			if (!AutoKichSP.isEvading)
+			{
+				if (num3 > 180)
+				{
+					return;
+				}
+				AutoKichSP.isEvading = true;
+			}
+			else if (num3 > 240)
+			{
+				AutoKichSP.isEvading = false;
+				return;
+			}
+			bool flag2 = @char.cx < char2.cx;
+			if ((!flag2 || char2.cdir != -1) && (flag2 || char2.cdir != 1))
+			{
+				return;
+			}
+			if (num < AutoKichSP.nextMoveMs)
+			{
+				return;
+			}
+			int num9 = 100;
+			int num10 = 24;
+			int num11 = TileMap.pxw - 24;
+			int num12 = num10 + 80;
+			int num13 = num11 - 80;
+			bool flag3 = @char.cx <= num12;
+			bool flag4 = @char.cx >= num13;
+			if (flag3 || flag4)
+			{
+				int num14;
+				if (@char.cx < char2.cx)
+				{
+					num14 = char2.cx + 120;
+				}
+				else
+				{
+					num14 = char2.cx - 120;
+				}
+				if (num14 < num12)
+				{
+					num14 = num12;
+				}
+				if (num14 > num13)
+				{
+					num14 = num13;
+				}
+				int num15 = @char.cx - num14;
+				if (num15 < 0)
+				{
+					num15 = -num15;
+				}
+				if (num15 >= 15)
+				{
+					AutoKichSP.MoveByTerrainToX(@char, num14, num);
+				}
+				return;
+			}
+			int num16 = AutoKichSP.FindSafeStandXAroundBoss(@char, char2, 100);
+			if (num16 < 0)
+			{
+				if (@char.cx < char2.cx)
+				{
+					num16 = char2.cx - num9;
+				}
+				else
+				{
+					num16 = char2.cx + num9;
+				}
+			}
+			if (num16 < num12)
+			{
+				num16 = num12;
+			}
+			if (num16 > num13)
+			{
+				num16 = num13;
+			}
+			int num17 = AutoKichSP.FindGroundYNearX(num16, @char.cy);
+			if (AutoKichSP.Abs(@char.cx - num16) < 15 && AutoKichSP.Abs(@char.cy - num17) < 36)
+			{
+				return;
+			}
+			if ((AutoKichSP.IsCornered(@char) || AutoKichSP.Abs(num17 - @char.cy) >= 84) && AutoKichSP.TryTeleportCrossBoss(@char, char2, num, 100))
+			{
+				return;
+			}
+			AutoKichSP.MoveByTerrainToX(@char, num16, num);
+			return;
+		}
+	}
+
+	// Token: 0x06000D1E RID: 3358 RVA: 0x000C6D84 File Offset: 0x000C4F84
+	private static int CalcOldKeepDistanceX(global::Char @char, global::Char char2, int distance)
+	{
+		bool flag = @char.cx < char2.cx;
+		int num = 24;
+		int num2 = TileMap.pxw - 24;
+		int num3 = num + 80;
+		int num4 = num2 - 80;
+		bool flag2 = @char.cx <= num3;
+		bool flag3 = @char.cx >= num4;
+		int num5;
+		if ((flag && flag2) || (!flag && flag3))
+		{
+			num5 = (flag ? (char2.cx + distance) : (char2.cx - distance));
+		}
+		else
+		{
+			num5 = (flag ? (char2.cx - distance) : (char2.cx + distance));
+		}
+		if (num5 < num3)
+		{
+			num5 = num3;
+		}
+		if (num5 > num4)
+		{
+			num5 = num4;
+		}
+		return num5;
+	}
+
+	// Token: 0x06000D1F RID: 3359 RVA: 0x000C6E24 File Offset: 0x000C5024
+	private static void ResetAll()
+	{
+		AutoKichSP.nextTickMs = 0L;
+		AutoKichSP.nextMoveMs = 0L;
+		AutoKichSP.nextEmergencyMs = 0L;
+		AutoKichSP.isEvading = false;
+		AutoKichSP.nextEmergencyMs = 0L;
+		AutoKichSP.lastMeX = int.MinValue;
+		AutoKichSP.lastAutoCmdMs = 0L;
+		AutoKichSP.manualUntilMs = 0L;
+		AutoKichSP.lastBrolyX = int.MinValue;
+		AutoKichSP.lastTeleMs = 0L;
+		AutoKichSP.targetMap = -1;
+		AutoKichSP.targetZone = -1;
+		AutoKichSP.waitBossUntilMs = 0L;
+		AutoKichSP.lowHpNamekUsedSkill18 = false;
+		AutoKichSP.blockedSuperMapZones.Clear();
+		AutoKichSP.lastBossUniqueKey = -1L;
+		AutoKichSP.pendingFarShot = false;
+		AutoKichSP.lastObservedMyPower = -1L;
+		AutoKichSP.lowHpEquippedInvisible = false;
+		AutoKichSP.waitingForFusion = false;
+		AutoKichSP.fusionStartMs = 0L;
+		AutoKichSP.currentBossSeenMs = 0L;
+		AutoKichSP.waitingForXmapLoadMs = 0L;
+		AutoKichSP.lastDisguiseEquipTryMs = 0L;
+		AutoKichSP.pendingCloseAfterTele = false;
+		AutoKichSP.pendingCloseAfterTeleMs = 0L;
+		AutoKichSP.pendingMoveBackAfterClose = false;
+		AutoKichSP.pendingFarShotAfterMove = false;
+		AutoKichSP.pendingFarShotAfterMoveMs = 0L;
+		AutoKichSP.pendingMoveBackAfterCloseMs = 0L;
+		AutoKichSP.lastObservedMyPotential = -1L;
+		AutoKichSP.lastHitConfirmedByReward = false;
+		AutoKichSP.lastRewardCheckMs = 0L;
+		AutoKichSP.hasHitCurrentBoss = false;
+		AutoKichSP.lastMap = -1;
+		AutoKichSP.bossStuckStartMs = 0L;
+		AutoKichSP.bossReachedOneHp = false;
+		AutoKichSP.lastBossProbeSkillMs = 0L;
+		AutoKichSP.lastWaitJumpMs = 0L;
+		AutoKichSP.lastHitTryMs = 0L;
+		AutoKichSP.currentBossHitCount = 0;
+		AutoKichSP.lastBossHitMs = 0L;
+		AutoKichSP.lastAntiDisconnectMoveMs = 0L;
+		AutoKichSP.antiMoveLeft = false;
+		AutoKichSP.lastZoneMap = -1;
+		AutoKichSP.zone2UsedMaps.Clear();
+		AutoKichSP.lastSwitchMapMs = 0L;
+		AutoKichSP.lastChangeZoneMs = 0L;
+		AutoKichSP.waitUntilMs = 0L;
+		AutoKichSP.lastStopMs = 0L;
+		AutoKichSP.nextDisguiseEquipMs = 0L;
+		AutoKichSP.nextReflectEquipMs = 0L;
+		AutoKichSP.lastObservedBossHp = -1L;
+		AutoKichSP.waitingHpCheckAfterHit = false;
+		AutoKichSP.nextCheckBossHpMs = 0L;
+		AutoKichSP.extraRetryUsedForCurrentBoss = false;
+	}
+
+	// Token: 0x06000D20 RID: 3360 RVA: 0x000C6FB4 File Offset: 0x000C51B4
+	private static void AutoEquipKickSP(long now)
+	{
+		if (!AutoKichSP.Enabled || DataAccount.Type != 1)
+		{
+			return;
+		}
+		if (AutoKichSP.lowHpProtectRunning)
+		{
+			return;
+		}
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.arrItemBag == null || @char.arrItemBody == null)
+		{
+			return;
+		}
+		if (now >= AutoKichSP.nextReflectEquipMs)
+		{
+			AutoKichSP.nextReflectEquipMs = now + 1200L;
+			AutoKichSP.TryEquipBestReflectItem(@char);
+		}
+		global::Char char2 = AutoKichSP.FindCurrentBossForProtect();
+		if (now >= AutoKichSP.nextDisguiseEquipMs)
+		{
+			AutoKichSP.nextDisguiseEquipMs = now + 2500L;
+			if (char2 != null && char2.cHP > 0L)
+			{
+				AutoKichSP.TryEquipDisguise524525(@char);
+				return;
+			}
+			AutoKichSP.TryEquipInvisible449(@char);
+		}
+	}
+
+	// Token: 0x06000D21 RID: 3361 RVA: 0x000C7044 File Offset: 0x000C5244
+	private static void TryEquipDisguise524525(global::Char me)
+	{
+		if (me == null || me.arrItemBag == null || me.arrItemBody == null)
+		{
+			return;
+		}
+		if (AutoKichSP.lowHpProtectRunning)
+		{
+			return;
+		}
+		if (AutoKichSP.IsEquippedDisguise524525(me))
+		{
+			return;
+		}
+		long num = mSystem.currentTimeMillis();
+		if (num - AutoKichSP.lastDisguiseEquipTryMs < 3000L)
+		{
+			return;
+		}
+		int num2 = AutoKichSP.FindDisguise524525InBag(me);
+		if (num2 >= 0)
+		{
+			Service.gI().getItem(4, (sbyte)num2);
+			AutoKichSP.lastDisguiseEquipTryMs = num;
+			GameScr.info1.addInfo("KickSP mặc lại cải trang", 0);
+		}
+	}
+
+	// Token: 0x06000D22 RID: 3362 RVA: 0x000C70BC File Offset: 0x000C52BC
+	private static void TryEquipBestReflectItem(global::Char me)
+	{
+		if (me == null || me.arrItemBag == null || me.arrItemBody == null)
+		{
+			return;
+		}
+		if (AutoKichSP.lowHpProtectRunning)
+		{
+			return;
+		}
+		Item item = (me.arrItemBody.Length > 6) ? me.arrItemBody[6] : null;
+		int num = (item != null) ? AutoKichSP.GetReflectValue(item) : 0;
+		int num2 = (item != null && item.template != null) ? AutoKichSP.GetTrainingArmorPriority((int)item.template.id) : 0;
+		int num3 = -1;
+		int num4 = num;
+		int num5 = num2;
+		for (int i = 0; i < me.arrItemBag.Length; i++)
+		{
+			Item item2 = me.arrItemBag[i];
+			if (item2 != null && item2.template != null)
+			{
+				int id = (int)item2.template.id;
+				if (AutoKichSP.IsTrainingArmor(id))
+				{
+					int reflectValue = AutoKichSP.GetReflectValue(item2);
+					if (reflectValue > 0)
+					{
+						int trainingArmorPriority = AutoKichSP.GetTrainingArmorPriority(id);
+						if (reflectValue > num4 || (reflectValue == num4 && trainingArmorPriority > num5))
+						{
+							num4 = reflectValue;
+							num5 = trainingArmorPriority;
+							num3 = i;
+						}
+					}
+				}
+			}
+		}
+		if (num3 >= 0)
+		{
+			Item item3 = me.arrItemBag[num3];
+			Service.gI().getItem(4, (sbyte)num3);
+			GameScr.info1.addInfo(string.Concat(new object[]
+			{
+				"\ud83d\udd25 MẶC GIÁP LT | slotBag=",
+				num3,
+				" | id=",
+				item3.template.id,
+				" | phản=",
+				num4
+			}), 0);
+			return;
+		}
+		Item item4 = (me.arrItemBody.Length != 0) ? me.arrItemBody[0] : null;
+		int num6 = (item4 != null) ? AutoKichSP.GetReflectValue(item4) : 0;
+		int num7 = -1;
+		int num8 = -1;
+		int num9 = -1;
+		for (int j = 0; j < me.arrItemBag.Length; j++)
+		{
+			Item item5 = me.arrItemBag[j];
+			if (item5 != null && item5.template != null && AutoKichSP.GetReflectBodySlot(item5) == 0)
+			{
+				int reflectValue2 = AutoKichSP.GetReflectValue(item5);
+				if (reflectValue2 > 0)
+				{
+					int armorValue = AutoKichSP.GetArmorValue(item5);
+					if (reflectValue2 > num8)
+					{
+						num8 = reflectValue2;
+						num9 = armorValue;
+						num7 = j;
+					}
+				}
+			}
+		}
+		if (item4 == null)
+		{
+			if (num7 >= 0)
+			{
+				Service.gI().getItem(4, (sbyte)num7);
+				GameScr.info1.addInfo(string.Concat(new object[]
+				{
+					"KickSP mặc lại ÁO phản cao nhất | phản=",
+					num8,
+					" | giáp=",
+					num9
+				}), 0);
+				return;
+			}
+		}
+		else if (num7 >= 0 && num8 > num6)
+		{
+			Service.gI().getItem(4, (sbyte)num7);
+			GameScr.info1.addInfo(string.Concat(new object[]
+			{
+				"KickSP đổi ÁO phản cao nhất | phản=",
+				num8,
+				" | giáp=",
+				num9
+			}), 0);
+			return;
+		}
+		foreach (int num10 in new int[]
+		{
+			1,
+			2,
+			3,
+			4
+		})
+		{
+			Item item6 = (num10 >= 0 && num10 < me.arrItemBody.Length) ? me.arrItemBody[num10] : null;
+			int num11 = (item6 != null) ? AutoKichSP.GetReflectValue(item6) : 0;
+			int num12 = -1;
+			int num13 = num11;
+			for (int l = 0; l < me.arrItemBag.Length; l++)
+			{
+				Item item7 = me.arrItemBag[l];
+				if (item7 != null && item7.template != null && AutoKichSP.GetReflectBodySlot(item7) == num10)
+				{
+					int reflectValue3 = AutoKichSP.GetReflectValue(item7);
+					if (reflectValue3 > num13)
+					{
+						num13 = reflectValue3;
+						num12 = l;
+					}
+				}
+			}
+			if (num12 >= 0)
+			{
+				Service.gI().getItem(4, (sbyte)num12);
+				GameScr.info1.addInfo(string.Concat(new object[]
+				{
+					"KickSP mặc đồ phản slot ",
+					num10,
+					" | +",
+					num13
+				}), 0);
+				return;
+			}
+		}
+	}
+
+	// Token: 0x06000D23 RID: 3363 RVA: 0x0000746F File Offset: 0x0000566F
+	private static bool IsCrystalStarItem(Item item)
+	{
+		return item != null && item.isTypeBody() && AutoKichSP.GetReflectValue(item) > 0;
+	}
+
+	// Token: 0x06000D24 RID: 3364 RVA: 0x000C7454 File Offset: 0x000C5654
+	private static int GetReflectValue(Item item)
+	{
+		int num = 0;
+		try
+		{
+			if (item == null || item.template == null || item.itemOption == null)
+			{
+				return 0;
+			}
+			int id = (int)item.template.id;
+			for (int i = 0; i < item.itemOption.Length; i++)
+			{
+				ItemOption itemOption = item.itemOption[i];
+				if (itemOption != null)
+				{
+					string text = "";
+					string text2 = "";
+					string text3 = "";
+					try
+					{
+						text = itemOption.getOptionString();
+					}
+					catch
+					{
+					}
+					try
+					{
+						text2 = itemOption.getOptionName();
+					}
+					catch
+					{
+					}
+					try
+					{
+						text3 = ((itemOption.optionTemplate != null) ? itemOption.optionTemplate.name : "");
+					}
+					catch
+					{
+					}
+					string text4 = (text ?? "").ToLower();
+					string text5 = (text2 ?? "").ToLower();
+					string text6 = (text3 ?? "").ToLower();
+					if ((text4.Contains("phản") || text4.Contains("phan") || text4.Contains("sat thuong") || text5.Contains("phản") || text5.Contains("phan") || text5.Contains("sat thuong") || text6.Contains("phản") || text6.Contains("phan") || text6.Contains("sat thuong")) && itemOption.param > num)
+					{
+						num = itemOption.param;
+					}
+				}
+			}
+			if (num <= 0 && AutoKichSP.IsTrainingArmor(id))
+			{
+				for (int j = 0; j < item.itemOption.Length; j++)
+				{
+					ItemOption itemOption2 = item.itemOption[j];
+					if (itemOption2 != null && itemOption2.param > num)
+					{
+						num = itemOption2.param;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return num;
+	}
+
+	// Token: 0x06000D25 RID: 3365 RVA: 0x000C7680 File Offset: 0x000C5880
+	private static bool IsEquippedReflectGoodEnough(global::Char me, int bestReflectInBag)
+	{
+		try
+		{
+			if (me == null || me.arrItemBody == null)
+			{
+				return false;
+			}
+			for (int i = 0; i < me.arrItemBody.Length; i++)
+			{
+				Item item = me.arrItemBody[i];
+				if (item != null && AutoKichSP.IsCrystalStarItem(item) && AutoKichSP.GetReflectValue(item) >= bestReflectInBag)
+				{
+					return true;
+				}
+			}
+		}
+		catch
+		{
+		}
+		return false;
+	}
+
+	// Token: 0x06000D26 RID: 3366 RVA: 0x000C76E8 File Offset: 0x000C58E8
+	private static void BeginMoveToSelectedMap(long now)
+	{
+		if (!AutoKichSP.Enabled)
+		{
+			return;
+		}
+		global::Char @char = AutoKichSP.FindBrolyThuong();
+		global::Char char2 = AutoKichSP.FindSuperBroly();
+		if (@char != null && @char.cHP > 0L && (char2 == null || char2.cHP <= 0L) && AutoKichSP.GetBossFullHp(@char) != 16070777L)
+		{
+			AutoKichSP.targetMap = TileMap.mapID;
+			AutoKichSP.targetZone = TileMap.zoneID;
+			AutoKichSP.waitBossUntilMs = now + 480000L;
+			AutoKichSP.waitUntilMs = now + 100L;
+			GameScr.info1.addInfo("KickSP: đang cùng khu có Broly, không nhảy cuối map", 0);
+			return;
+		}
+		if (AutoKichSP.targetMap == -1)
+		{
+			AutoKichSP.PickNextMap(true);
+			if (AutoKichSP.targetMap == -1)
+			{
+				return;
+			}
+		}
+		AutoKichSP.lastBossUniqueKey = -1L;
+		AutoKichSP.hasHitCurrentBoss = false;
+		AutoKichSP.lastHitTryMs = 0L;
+		AutoKichSP.currentBossHitCount = 0;
+		AutoKichSP.lastBossHitMs = 0L;
+		AutoKichSP.waitBossUntilMs = 0L;
+		if (TileMap.mapID != AutoKichSP.targetMap)
+		{
+			AutoKichSP.RunToMap(AutoKichSP.targetMap);
+			AutoKichSP.lastSwitchMapMs = now;
+			AutoKichSP.waitUntilMs = now + 700L;
+			return;
+		}
+		if (AutoKichSP.targetZone < 2)
+		{
+			AutoKichSP.targetZone = AutoKichSP.GetPreferredZoneForMap(AutoKichSP.targetMap);
+		}
+		if (TileMap.zoneID == 0 || TileMap.zoneID == 1)
+		{
+			if (AutoKichSP.targetZone < 2)
+			{
+				AutoKichSP.targetMap = -1;
+				AutoKichSP.targetZone = -1;
+				AutoKichSP.waitUntilMs = now + 300L;
+				return;
+			}
+			Service.gI().requestChangeZone(AutoKichSP.targetZone, -1);
+			AutoKichSP.lastChangeZoneMs = now;
+			AutoKichSP.waitUntilMs = now + 500L;
+			GameScr.info1.addInfo("KickSP đổi khu ngay: " + AutoKichSP.targetZone, 0);
+			return;
+		}
+		else if (TileMap.zoneID != AutoKichSP.targetZone)
+		{
+			if (AutoKichSP.targetZone < 2)
+			{
+				AutoKichSP.targetMap = -1;
+				AutoKichSP.targetZone = -1;
+				AutoKichSP.waitUntilMs = now + 300L;
+				return;
+			}
+			Service.gI().requestChangeZone(AutoKichSP.targetZone, -1);
+			AutoKichSP.lastChangeZoneMs = now;
+			AutoKichSP.waitUntilMs = now + 500L;
+			GameScr.info1.addInfo("KickSP đổi khu ngay: " + AutoKichSP.targetZone, 0);
+			return;
+		}
+		else
+		{
+			AutoKichSP.waitBossUntilMs = now + 480000L;
+			global::Char char3 = AutoKichSP.FindBrolyThuong();
+			global::Char char4 = AutoKichSP.FindSuperBroly();
+			if ((char3 == null || char3.cHP <= 0L) && (char4 == null || char4.cHP <= 0L))
+			{
+				AutoBroly.NhayCuoiMap();
+				AutoKichSP.lastWaitJumpMs = now;
+				AutoKichSP.waitUntilMs = now + 300L;
+				GameScr.info1.addInfo("KickSP chờ boss 8 phút", 0);
+				return;
+			}
+			AutoKichSP.waitUntilMs = now + 100L;
+			GameScr.info1.addInfo("KickSP: đang có boss, không nhảy cuối map", 0);
+			return;
+		}
+	}
+
+	// Token: 0x06000D27 RID: 3367 RVA: 0x000C7948 File Offset: 0x000C5B48
+	private static int GetPreferredZoneForMap(int map)
+	{
+		int num;
+		int result;
+		if (AutoKichSP.TryGetLockedMapZone(out num, out result) && num == map)
+		{
+			return result;
+		}
+		return AutoKichSP.GetPreferredZoneForMapNotBlocked(map, false, mSystem.currentTimeMillis());
+	}
+
+	// Token: 0x06000D28 RID: 3368 RVA: 0x000C7974 File Offset: 0x000C5B74
+	private static int GetRandomPreferredNearMap(int currentMap, int excludeMap)
+	{
+		int nearestMapByXmap = AutoKichSP.GetNearestMapByXmap(currentMap, excludeMap);
+		if (nearestMapByXmap != -1)
+		{
+			return nearestMapByXmap;
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D29 RID: 3369 RVA: 0x000C7990 File Offset: 0x000C5B90
+	private static int[] GetMapsSortedByRouteDistance(int currentMap, int excludeMap)
+	{
+		List<int> list = new List<int>();
+		for (int i = 0; i < AutoKichSP.MAPS.Length; i++)
+		{
+			int num = AutoKichSP.MAPS[i];
+			if (num != excludeMap && num != currentMap)
+			{
+				list.Add(num);
+			}
+		}
+		if (list.Count == 0)
+		{
+			return new int[0];
+		}
+		try
+		{
+			if (currentMap < 0 || XmapData.Instance() == null)
+			{
+				return list.ToArray();
+			}
+			if (XmapData.Instance().MyLinkMaps == null)
+			{
+				XmapData.Instance().LoadLinkMaps();
+				return list.ToArray();
+			}
+		}
+		catch
+		{
+			return list.ToArray();
+		}
+		list.Sort(delegate(int a, int b)
+		{
+			int num2 = int.MaxValue;
+			int num3 = int.MaxValue;
+			try
+			{
+				List<int> list2 = XmapAlgorithm.FindWay(currentMap, a);
+				if (list2 != null && list2.Count > 1)
+				{
+					num2 = list2.Count - 1;
+				}
+			}
+			catch
+			{
+			}
+			try
+			{
+				List<int> list3 = XmapAlgorithm.FindWay(currentMap, b);
+				if (list3 != null && list3.Count > 1)
+				{
+					num3 = list3.Count - 1;
+				}
+			}
+			catch
+			{
+			}
+			if (num2 != num3)
+			{
+				return num2.CompareTo(num3);
+			}
+			return 0;
+		});
+		return list.ToArray();
+	}
+
+	// Token: 0x06000D2A RID: 3370 RVA: 0x000C7A60 File Offset: 0x000C5C60
+	private static int GetRouteDistanceScore(int fromMap, int toMap)
+	{
+		if (fromMap < 0)
+		{
+			int num = AutoKichSP.IndexOfRoute(AutoKichSP.ROUTE_ORDER, toMap);
+			if (num != -1)
+			{
+				return num;
+			}
+			return 999999;
+		}
+		else
+		{
+			int num2 = AutoKichSP.IndexOfRoute(AutoKichSP.ROUTE_ORDER, fromMap);
+			int num3 = AutoKichSP.IndexOfRoute(AutoKichSP.ROUTE_ORDER, toMap);
+			if (num2 != -1 && num3 != -1)
+			{
+				int num4 = num2 - num3;
+				if (num4 < 0)
+				{
+					num4 = -num4;
+				}
+				return num4;
+			}
+			if (num3 != -1)
+			{
+				return 5000 + num3;
+			}
+			return 999999;
+		}
+	}
+
+	// Token: 0x06000D2B RID: 3371 RVA: 0x000C7AC8 File Offset: 0x000C5CC8
+	private static int IndexOfRoute(int[] arr, int map)
+	{
+		for (int i = 0; i < arr.Length; i++)
+		{
+			if (arr[i] == map)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D2C RID: 3372 RVA: 0x000C7AEC File Offset: 0x000C5CEC
+	private static void AntiDisconnectMove(long now)
+	{
+		if (Pk9rXmap.IsXmapRunning || AutoBroly.isDoKhu)
+		{
+			return;
+		}
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.meDead || @char.cHP <= 0L || @char.statusMe == 14)
+		{
+			return;
+		}
+		if (now - AutoKichSP.lastAntiDisconnectMoveMs < 10000L)
+		{
+			return;
+		}
+		@char.cx += (AutoKichSP.antiMoveLeft ? -1 : 1);
+		AutoKichSP.antiMoveLeft = !AutoKichSP.antiMoveLeft;
+		Service.gI().charMove();
+		AutoKichSP.lastAntiDisconnectMoveMs = now;
+		AutoKichSP.lastAutoCmdMs = now;
+	}
+
+	// Token: 0x06000D2D RID: 3373 RVA: 0x000C7B7C File Offset: 0x000C5D7C
+	private static int GetNearestMapByXmap(int currentMap, int excludeMap)
+	{
+		if (currentMap < 0)
+		{
+			return -1;
+		}
+		try
+		{
+			if (XmapData.Instance() == null)
+			{
+				return -1;
+			}
+			if (XmapData.Instance().MyLinkMaps == null)
+			{
+				XmapData.Instance().LoadLinkMaps();
+				return -1;
+			}
+		}
+		catch
+		{
+			return -1;
+		}
+		List<int> list = new List<int>();
+		int num = int.MaxValue;
+		for (int i = 0; i < AutoKichSP.MAPS.Length; i++)
+		{
+			int num2 = AutoKichSP.MAPS[i];
+			if (num2 != currentMap && num2 != excludeMap)
+			{
+				try
+				{
+					List<int> list2 = XmapAlgorithm.FindWay(currentMap, num2);
+					if (list2 != null && list2.Count > 1)
+					{
+						int num3 = list2.Count - 1;
+						if (num3 < num)
+						{
+							num = num3;
+							list.Clear();
+							list.Add(num2);
+						}
+						else if (num3 == num)
+						{
+							list.Add(num2);
+						}
+					}
+				}
+				catch
+				{
+				}
+			}
+		}
+		if (list.Count == 0)
+		{
+			return -1;
+		}
+		return list[AutoKichSP.random.Next(list.Count)];
+	}
+
+	// Token: 0x06000D2E RID: 3374 RVA: 0x000C7C84 File Offset: 0x000C5E84
+	private static bool IsEquippedDisguise524525(global::Char me)
+	{
+		try
+		{
+			if (me == null || me.arrItemBody == null)
+			{
+				return false;
+			}
+			for (int i = 0; i < me.arrItemBody.Length; i++)
+			{
+				Item item = me.arrItemBody[i];
+				if (item != null && item.template != null)
+				{
+					int id = (int)item.template.id;
+					if (id == 524 || id == 525)
+					{
+						return true;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return false;
+	}
+
+	// Token: 0x06000D2F RID: 3375 RVA: 0x000C7D00 File Offset: 0x000C5F00
+	private static int FindBestReflectCrystalStarInBag(global::Char me, out int bestReflect)
+	{
+		bestReflect = -1;
+		int result = -1;
+		try
+		{
+			if (me == null || me.arrItemBag == null)
+			{
+				return -1;
+			}
+			for (int i = 0; i < me.arrItemBag.Length; i++)
+			{
+				Item item = me.arrItemBag[i];
+				if (item != null && item.template != null && AutoKichSP.IsCrystalStarItem(item))
+				{
+					int reflectValue = AutoKichSP.GetReflectValue(item);
+					if (reflectValue > bestReflect)
+					{
+						bestReflect = reflectValue;
+						result = i;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return result;
+	}
+
+	// Token: 0x06000D30 RID: 3376 RVA: 0x000C7D7C File Offset: 0x000C5F7C
+	private static int FindDisguise524525InBag(global::Char me)
+	{
+		if (me == null || me.arrItemBag == null)
+		{
+			return -1;
+		}
+		int num = -1;
+		for (int i = 0; i < me.arrItemBag.Length; i++)
+		{
+			Item item = me.arrItemBag[i];
+			if (item != null && item.template != null)
+			{
+				int id = (int)item.template.id;
+				if (id == 525)
+				{
+					return i;
+				}
+				if (id == 524 && num < 0)
+				{
+					num = i;
+				}
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000D31 RID: 3377 RVA: 0x000C7DE4 File Offset: 0x000C5FE4
+	private static int FindBestReflectItemInBag(global::Char me, out int bestReflect)
+	{
+		bestReflect = 0;
+		int result = -1;
+		try
+		{
+			if (me == null || me.arrItemBag == null)
+			{
+				return -1;
+			}
+			for (int i = 0; i < me.arrItemBag.Length; i++)
+			{
+				Item item = me.arrItemBag[i];
+				if (item != null && AutoKichSP.IsCrystalStarItem(item))
+				{
+					int reflectValue = AutoKichSP.GetReflectValue(item);
+					if (reflectValue > bestReflect)
+					{
+						bestReflect = reflectValue;
+						result = i;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return result;
+	}
+
+	// Token: 0x06000D32 RID: 3378 RVA: 0x00007487 File Offset: 0x00005687
+	private static int GetReflectEquipSlotKey(Item item)
+	{
+		if (item == null || item.template == null)
+		{
+			return -1;
+		}
+		if (AutoKichSP.IsTrainingArmor((int)item.template.id))
+		{
+			return 6;
+		}
+		return (int)item.template.type;
+	}
+
+	// Token: 0x06000D33 RID: 3379 RVA: 0x000C7E58 File Offset: 0x000C6058
+	private static bool IsReflectEquipItem(Item item)
+	{
+		if (item == null || item.template == null)
+		{
+			return false;
+		}
+		if (AutoKichSP.GetReflectValue(item) <= 0)
+		{
+			return false;
+		}
+		int type = (int)item.template.type;
+		int id = (int)item.template.id;
+		return type == 0 || type == 1 || type == 2 || type == 3 || type == 4 || id == 529 || id == 530 || id == 531;
+	}
+
+	// Token: 0x06000D34 RID: 3380 RVA: 0x000C7EC4 File Offset: 0x000C60C4
+	private static int GetReflectBodySlot(Item item)
+	{
+		if (item == null || item.template == null)
+		{
+			return -1;
+		}
+		if (AutoKichSP.IsTrainingArmor((int)item.template.id))
+		{
+			return 6;
+		}
+		int type = (int)item.template.type;
+		if (type >= 0 && type <= 4)
+		{
+			return type;
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D35 RID: 3381 RVA: 0x000C7F0C File Offset: 0x000C610C
+	public static void Paint(mGraphics g)
+	{
+		if (!AutoKichSP.Enabled)
+		{
+			return;
+		}
+		global::Char @char = AutoKichSP.FindBrolyThuong();
+		global::Char char2 = AutoKichSP.FindSuperBroly();
+		global::Char char3 = global::Char.myCharz();
+		if (char3 == null || char3.meDead || char3.cHP <= 0L)
+		{
+			return;
+		}
+		long num = mSystem.currentTimeMillis();
+		long num2 = AutoKichSP.waitBossUntilMs - num;
+		bool flag = num2 > 0L && (@char == null || @char.cHP <= 0L) && (char2 == null || char2.cHP <= 0L);
+		bool flag2 = false;
+		string text = "";
+		string text2 = "";
+		if (@char != null && @char.cHP > 0L)
+		{
+			if (AutoKichSP.bossReachedOneHp)
+			{
+				flag2 = true;
+				text = "đã gây sát thương";
+				text2 = "[STOP]";
+			}
+			else if (AutoKichSP.bossStuckStartMs > 0L)
+			{
+				long num3 = 600000L - (num - AutoKichSP.bossStuckStartMs);
+				if (num3 < 0L)
+				{
+					num3 = 0L;
+				}
+				long num4 = num3 / 1000L;
+				long num5 = num4 / 60L;
+				long num6 = num4 % 60L;
+				flag2 = true;
+				text = "Time 10p den Main.exit:";
+				text2 = string.Concat(new object[]
+				{
+					"[",
+					(num5 < 10L) ? "0" : "",
+					num5,
+					":",
+					(num6 < 10L) ? "0" : "",
+					num6,
+					"]"
+				});
+			}
+		}
+		if (!flag && !flag2)
+		{
+			return;
+		}
+		int num7 = char3.cy - char3.ch - 34;
+		if (flag)
+		{
+			long num8 = num2 / 1000L;
+			long num9 = num8 / 60L;
+			long num10 = num8 % 60L;
+			string text3 = "Time cho boss con:";
+			string text4 = string.Concat(new object[]
+			{
+				"[",
+				(num9 < 10L) ? "0" : "",
+				num9,
+				":",
+				(num10 < 10L) ? "0" : "",
+				num10,
+				"]"
+			});
+			int width = mFont.tahoma_7b_white.getWidth(text3);
+			int width2 = mFont.tahoma_7b_yellow.getWidth(text4);
+			int num11 = char3.cx - width / 2;
+			int num12 = char3.cx - width2 / 2;
+			int num13 = num7;
+			int num14 = num13 + 12;
+			mFont.tahoma_7b_yellow.drawString(g, text3, num11 + 2, num13 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text3, num11 - 2, num13 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text3, num11 + 2, num13 - 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text3, num11 - 2, num13 - 2, 0);
+			mFont.tahoma_7b_white.drawString(g, text3, num11, num13, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text4, num12 + 2, num14 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text4, num12 - 2, num14 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text4, num12 + 2, num14 - 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text4, num12 - 2, num14 - 2, 0);
+			mFont.tahoma_7b_white.drawString(g, text4, num12, num14, 0);
+			num7 += 26;
+		}
+		if (flag2)
+		{
+			int width3 = mFont.tahoma_7b_white.getWidth(text);
+			int width4 = mFont.tahoma_7b_yellow.getWidth(text2);
+			int num15 = char3.cx - width3 / 2;
+			int num16 = char3.cx - width4 / 2;
+			int num17 = num7;
+			int num18 = num17 + 12;
+			mFont.tahoma_7b_yellow.drawString(g, text, num15 + 2, num17 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text, num15 - 2, num17 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text, num15 + 2, num17 - 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text, num15 - 2, num17 - 2, 0);
+			mFont.tahoma_7b_white.drawString(g, text, num15, num17, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text2, num16 + 2, num18 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text2, num16 - 2, num18 + 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text2, num16 + 2, num18 - 2, 0);
+			mFont.tahoma_7b_yellow.drawString(g, text2, num16 - 2, num18 - 2, 0);
+			mFont.tahoma_7b_white.drawString(g, text2, num16, num18, 0);
+		}
+	}
+
+	// Token: 0x06000D36 RID: 3382 RVA: 0x000C834C File Offset: 0x000C654C
+	private static bool IsLowHp()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.cHPFull <= 0L)
+		{
+			return false;
+		}
+		long num = @char.cHP * 100L / @char.cHPFull;
+		int myClassType = AutoKichSP.GetMyClassType();
+		if (myClassType == 2)
+		{
+			return num <= 35L;
+		}
+		if (myClassType == 0 || myClassType == 1)
+		{
+			return num <= 55L;
+		}
+		return num <= 25L;
+	}
+
+	// Token: 0x06000D37 RID: 3383 RVA: 0x000C83B0 File Offset: 0x000C65B0
+	private static int GetMyClassType()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return -1;
+		}
+		return @char.cgender;
+	}
+
+	// Token: 0x06000D38 RID: 3384 RVA: 0x000C83D0 File Offset: 0x000C65D0
+	private static global::Char FindCurrentBossForProtect()
+	{
+		global::Char @char = AutoKichSP.FindSuperBroly();
+		if (@char != null && @char.cHP > 0L)
+		{
+			return @char;
+		}
+		global::Char char2 = AutoKichSP.FindBrolyThuong();
+		if (char2 != null && char2.cHP > 0L)
+		{
+			return char2;
+		}
+		return null;
+	}
+
+	// Token: 0x06000D39 RID: 3385 RVA: 0x000C8408 File Offset: 0x000C6608
+	private static bool SelectSkillById(int skillId)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.vSkill == null)
+		{
+			return false;
+		}
+		for (int i = 0; i < @char.vSkill.size(); i++)
+		{
+			Skill skill = (Skill)@char.vSkill.elementAt(i);
+			if (skill != null && skill.template != null && (int)skill.template.id == skillId)
+			{
+				@char.myskill = skill;
+				Service.gI().selectSkill((int)skill.template.id);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x06000D3A RID: 3386 RVA: 0x000C8488 File Offset: 0x000C6688
+	private static bool UseSkillAttackBoss(global::Char boss, int skillId)
+	{
+		if (boss == null || boss.cHP <= 0L)
+		{
+			return false;
+		}
+		if (!AutoKichSP.SelectSkillById(skillId))
+		{
+			return false;
+		}
+		MyVector myVector = new MyVector();
+		myVector.addElement(boss);
+		global::Char.myCharz().charFocus = boss;
+		Service.gI().sendPlayerAttack(new MyVector(), myVector, -1);
+		return true;
+	}
+
+	// Token: 0x06000D3B RID: 3387 RVA: 0x000C84D8 File Offset: 0x000C66D8
+	private static int FindBagItemSlotByTemplateId(int templateId)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.arrItemBag == null)
+		{
+			return -1;
+		}
+		for (int i = 0; i < @char.arrItemBag.Length; i++)
+		{
+			Item item = @char.arrItemBag[i];
+			if (item != null && item.template != null && (int)item.template.id == templateId)
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D3C RID: 3388 RVA: 0x000C8530 File Offset: 0x000C6730
+	private static bool UseBagItemByTemplateId(int templateId)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.arrItemBag == null)
+		{
+			return false;
+		}
+		for (int i = 0; i < @char.arrItemBag.Length; i++)
+		{
+			Item item = @char.arrItemBag[i];
+			if (item != null && item.template != null && (int)item.template.id == templateId)
+			{
+				Service.gI().useItem(0, 1, -1, item.template.id);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x06000D3D RID: 3389 RVA: 0x000C85A0 File Offset: 0x000C67A0
+	private static void SaveCurrentDisguise()
+	{
+		AutoKichSP.oldDisguiseTemplateId = -1;
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.arrItemBody == null)
+		{
+			return;
+		}
+		for (int i = 0; i < @char.arrItemBody.Length; i++)
+		{
+			Item item = @char.arrItemBody[i];
+			if (item != null && item.template != null)
+			{
+				string name = item.template.name;
+				if (!string.IsNullOrEmpty(name) && name.ToLower().Contains("cải trang"))
+				{
+					AutoKichSP.oldDisguiseTemplateId = (int)item.template.id;
+					return;
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000D3E RID: 3390 RVA: 0x000C8624 File Offset: 0x000C6824
+	private static bool ReWearOldDisguise()
+	{
+		if (AutoKichSP.oldDisguiseTemplateId < 0)
+		{
+			return false;
+		}
+		int num = AutoKichSP.FindBagItemSlotByTemplateId(AutoKichSP.oldDisguiseTemplateId);
+		if (num < 0)
+		{
+			return false;
+		}
+		Service.gI().useItem(0, 1, (sbyte)num, -1);
+		return true;
+	}
+
+	// Token: 0x06000D3F RID: 3391 RVA: 0x000C865C File Offset: 0x000C685C
+	private static void UpdateLowHpProtect(long now)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.meDead || @char.cHP <= 0L)
+		{
+			AutoKichSP.EndLowHpProtect();
+			return;
+		}
+		if (AutoKichSP.lowHpProtectRunning && !AutoKichSP.IsLowHp() && !AutoKichSP.lowHpUsedProtara)
+		{
+			AutoKichSP.EndLowHpProtect();
+			return;
+		}
+		if (!AutoKichSP.lowHpProtectRunning)
+		{
+			if (!AutoKichSP.IsLowHp())
+			{
+				return;
+			}
+			AutoKichSP.lowHpProtectRunning = true;
+			AutoKichSP.lowHpProtectStartMs = now;
+			AutoKichSP.lowHpUsedInvisible = false;
+			AutoKichSP.lowHpUsedProtara = false;
+			AutoKichSP.lowHpSaiyanUsedSkill23 = false;
+			AutoKichSP.lowHpSaiyanUsedSkill8 = false;
+			AutoKichSP.lowHpSaiyanSkill23Ms = 0L;
+			AutoKichSP.lowHpSaiyanCheckHpUntilMs = 0L;
+			AutoKichSP.lowHpSaiyanStartHp = @char.cHP;
+			AutoKichSP.lowHpBossCharId = -1;
+			AutoKichSP.lowHpHadBossAtStart = (AutoKichSP.FindCurrentBossForProtect() != null);
+			AutoKichSP.nextLowHpActionMs = now;
+			AutoKichSP.SaveCurrentDisguise();
+			AutoKichSP.lowHpEquippedInvisible = false;
+		}
+		if (now < AutoKichSP.nextLowHpActionMs)
+		{
+			return;
+		}
+		int myClassType = AutoKichSP.GetMyClassType();
+		global::Char char2 = AutoKichSP.FindCurrentBossForProtect();
+		bool flag = char2 != null && char2.cHP > 0L;
+		if (myClassType == 0)
+		{
+			if (!flag)
+			{
+				if (AutoKichSP.UsePotaraOrChickenAtHome())
+				{
+					GameScr.info1.addInfo("KickSP: HP thấp không boss, Earthling dùng Potara", 0);
+				}
+				AutoKichSP.RestoreDisguiseAfterLowHp(false);
+				AutoKichSP.EndLowHpProtect();
+				return;
+			}
+			if (!AutoKichSP.lowHpUsedInvisible)
+			{
+				if (AutoKichSP.UseSkillAttackBoss(char2, 22))
+				{
+					AutoKichSP.lowHpUsedInvisible = true;
+					AutoKichSP.nextLowHpActionMs = now + 1500L;
+					GameScr.info1.addInfo("KickSP: Earthling dùng skill 22 lên boss", 0);
+					return;
+				}
+				AutoKichSP.lowHpUsedInvisible = true;
+			}
+			if (!AutoKichSP.lowHpEquippedInvisible)
+			{
+				if (AutoKichSP.TryEquipInvisible449(@char))
+				{
+					AutoKichSP.lowHpEquippedInvisible = true;
+					AutoKichSP.nextLowHpActionMs = now + 4000L;
+					GameScr.info1.addInfo("KickSP: Earthling mặc 449, chờ 4s", 0);
+					return;
+				}
+				AutoKichSP.lowHpEquippedInvisible = true;
+			}
+			if (AutoKichSP.lowHpUsedProtara)
+			{
+				if (now >= AutoKichSP.nextLowHpActionMs)
+				{
+					AutoKichSP.RestoreDisguiseAfterLowHp(true);
+					AutoKichSP.EndLowHpProtect();
+				}
+				return;
+			}
+			if (AutoKichSP.UsePotaraOrChickenAtHome())
+			{
+				AutoKichSP.lowHpUsedProtara = true;
+				AutoKichSP.nextLowHpActionMs = now + 11000L;
+				GameScr.info1.addInfo("KickSP: Earthling dùng Potara, chờ 11 giây", 0);
+				return;
+			}
+			AutoKichSP.RestoreDisguiseAfterLowHp(true);
+			AutoKichSP.EndLowHpProtect();
+			return;
+		}
+		else if (myClassType == 1)
+		{
+			if (!flag)
+			{
+				if (AutoKichSP.UsePotaraOrChickenAtHome())
+				{
+					GameScr.info1.addInfo("KickSP: HP thấp không boss, Namek dùng Potara", 0);
+				}
+				AutoKichSP.RestoreDisguiseAfterLowHp(false);
+				AutoKichSP.EndLowHpProtect();
+				return;
+			}
+			if (!AutoKichSP.lowHpNamekUsedSkill18)
+			{
+				if (AutoKichSP.UseSkillById(18))
+				{
+					AutoKichSP.lowHpNamekUsedSkill18 = true;
+					AutoKichSP.nextLowHpActionMs = now + 1500L;
+					GameScr.info1.addInfo("KickSP: Namek dùng skill 18 hồi HP", 0);
+					return;
+				}
+				AutoKichSP.lowHpNamekUsedSkill18 = true;
+			}
+			if (!AutoKichSP.lowHpEquippedInvisible)
+			{
+				if (AutoKichSP.TryEquipInvisible449(@char))
+				{
+					AutoKichSP.lowHpEquippedInvisible = true;
+					AutoKichSP.nextLowHpActionMs = now + 4000L;
+					GameScr.info1.addInfo("KickSP: Namek mặc 449, chờ 4s", 0);
+					return;
+				}
+				AutoKichSP.lowHpEquippedInvisible = true;
+			}
+			if (AutoKichSP.lowHpUsedProtara)
+			{
+				if (now >= AutoKichSP.nextLowHpActionMs)
+				{
+					AutoKichSP.RestoreDisguiseAfterLowHp(true);
+					AutoKichSP.EndLowHpProtect();
+				}
+				return;
+			}
+			if (AutoKichSP.UsePotaraOrChickenAtHome())
+			{
+				AutoKichSP.lowHpUsedProtara = true;
+				AutoKichSP.nextLowHpActionMs = now + 11000L;
+				GameScr.info1.addInfo("KickSP: Namek dùng Potara, chờ 11 giây", 0);
+				return;
+			}
+			AutoKichSP.RestoreDisguiseAfterLowHp(true);
+			AutoKichSP.EndLowHpProtect();
+			return;
+		}
+		else
+		{
+			if (myClassType != 2)
+			{
+				return;
+			}
+			if (!flag)
+			{
+				if (AutoKichSP.lowHpSaiyanUsedSkill8)
+				{
+					if (now >= AutoKichSP.lowHpSaiyanCheckHpUntilMs)
+					{
+						if (@char.cHP <= AutoKichSP.lowHpSaiyanStartHp && AutoKichSP.UsePotaraOrChickenAtHome())
+						{
+							GameScr.info1.addInfo("KickSP: skill 8 không tăng HP, dùng Potara", 0);
+						}
+						AutoKichSP.EndLowHpProtect();
+					}
+					return;
+				}
+				AutoKichSP.lowHpSaiyanStartHp = @char.cHP;
+				if (AutoKichSP.UseSkill8Self())
+				{
+					AutoKichSP.lowHpSaiyanUsedSkill8 = true;
+					AutoKichSP.lowHpSaiyanCheckHpUntilMs = now + 3000L;
+					AutoKichSP.nextLowHpActionMs = now + 3050L;
+					GameScr.info1.addInfo("KickSP: HP thấp, Saiyan dùng skill 8", 0);
+					return;
+				}
+				if (AutoKichSP.UsePotaraOrChickenAtHome())
+				{
+					GameScr.info1.addInfo("KickSP: skill 8 lỗi, dùng Potara", 0);
+				}
+				AutoKichSP.EndLowHpProtect();
+				return;
+			}
+			else
+			{
+				if (AutoKichSP.lowHpBossCharId == -1 && char2 != null)
+				{
+					AutoKichSP.lowHpBossCharId = char2.charID;
+				}
+				if (!AutoKichSP.lowHpSaiyanUsedSkill23)
+				{
+					if (AutoKichSP.UseSkillAttackBoss(char2, 23))
+					{
+						AutoKichSP.lowHpSaiyanUsedSkill23 = true;
+						AutoKichSP.lowHpSaiyanSkill23Ms = now;
+						AutoKichSP.nextLowHpActionMs = now + 1500L;
+						GameScr.info1.addInfo("KickSP: Saiyan dùng skill 23 lên boss", 0);
+						return;
+					}
+					if (AutoKichSP.UsePotaraOrChickenAtHome())
+					{
+						GameScr.info1.addInfo("KickSP: lỗi skill 23, fallback Potara", 0);
+					}
+					AutoKichSP.EndLowHpProtect();
+					return;
+				}
+				else if (AutoKichSP.lowHpSaiyanUsedSkill8)
+				{
+					if (now < AutoKichSP.lowHpSaiyanCheckHpUntilMs)
+					{
+						return;
+					}
+					if (@char.cHP >= @char.cHPFull)
+					{
+						AutoKichSP.RestoreDisguiseAfterLowHp(true);
+						AutoKichSP.EndLowHpProtect();
+						return;
+					}
+					if (@char.cHP <= AutoKichSP.lowHpSaiyanStartHp && AutoKichSP.UsePotaraOrChickenAtHome())
+					{
+						GameScr.info1.addInfo("KickSP: skill 8 không tăng HP, dùng Potara", 0);
+					}
+					AutoKichSP.RestoreDisguiseAfterLowHp(true);
+					AutoKichSP.EndLowHpProtect();
+					return;
+				}
+				else
+				{
+					if (now - AutoKichSP.lowHpSaiyanSkill23Ms < 1500L)
+					{
+						return;
+					}
+					AutoKichSP.lowHpSaiyanStartHp = @char.cHP;
+					if (AutoKichSP.UseSkill8Self())
+					{
+						AutoKichSP.lowHpSaiyanUsedSkill8 = true;
+						AutoKichSP.lowHpSaiyanCheckHpUntilMs = now + 3000L;
+						AutoKichSP.nextLowHpActionMs = now + 3050L;
+						GameScr.info1.addInfo("KickSP: Saiyan dùng skill 8", 0);
+						return;
+					}
+					if (!AutoKichSP.lowHpUsedProtara)
+					{
+						if (AutoKichSP.UsePotaraOrChickenAtHome())
+						{
+							AutoKichSP.lowHpUsedProtara = true;
+							AutoKichSP.nextLowHpActionMs = now + 11000L;
+							GameScr.info1.addInfo("KickSP: skill 8 lỗi, dùng Potara và chờ 11s", 0);
+							return;
+						}
+						AutoKichSP.RestoreDisguiseAfterLowHp(true);
+						AutoKichSP.EndLowHpProtect();
+						return;
+					}
+					else
+					{
+						if (now < AutoKichSP.nextLowHpActionMs)
+						{
+							return;
+						}
+						AutoKichSP.UseSkillAttackBoss(char2, 23);
+						AutoKichSP.RestoreDisguiseAfterLowHp(true);
+						AutoKichSP.EndLowHpProtect();
+						return;
+					}
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000D40 RID: 3392 RVA: 0x000C8B3C File Offset: 0x000C6D3C
+	private static bool UseSkillById(int skillId)
+	{
+		Skill skillById = AutoKichSP.GetSkillById(skillId);
+		global::Char @char = global::Char.myCharz();
+		if (skillById == null || @char == null)
+		{
+			return false;
+		}
+		@char.npcFocus = null;
+		@char.mobFocus = null;
+		@char.charFocus = null;
+		@char.myskill = skillById;
+		Service.gI().selectSkill((int)skillById.template.id);
+		GameScr.gI().doSelectSkill(skillById, true);
+		AutoKichSP.lastAutoCmdMs = mSystem.currentTimeMillis();
+		return @char.myskill == skillById;
+	}
+
+	// Token: 0x06000D41 RID: 3393 RVA: 0x000C8BB0 File Offset: 0x000C6DB0
+	private static bool UsePotara()
+	{
+		long num = mSystem.currentTimeMillis();
+		if (num < AutoKichSP.nextPotaraUseMs)
+		{
+			return false;
+		}
+		bool flag = AutoKichSP.UseBagItemByTemplateId(454) || AutoKichSP.UseBagItemByTemplateId(921);
+		if (flag)
+		{
+			AutoKichSP.nextPotaraUseMs = num + 10000L;
+		}
+		return flag;
+	}
+
+	// Token: 0x06000D42 RID: 3394 RVA: 0x000C8BF8 File Offset: 0x000C6DF8
+	private static global::Char FindSuperBroly()
+	{
+		if (GameScr.vCharInMap == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < GameScr.vCharInMap.size(); i++)
+		{
+			global::Char @char = (global::Char)GameScr.vCharInMap.elementAt(i);
+			if (@char != null && @char.cHP > 0L && @char.cName != null && @char.cName.Contains("Broly") && @char.cName.Contains("Super"))
+			{
+				return @char;
+			}
+		}
+		return null;
+	}
+
+	// Token: 0x06000D43 RID: 3395 RVA: 0x000074B5 File Offset: 0x000056B5
+	private static bool ShouldNextMapBecauseOfBoss(global::Char brolyThuong, global::Char superBroly)
+	{
+		return (superBroly != null && superBroly.cHP > 0L) || (brolyThuong != null && brolyThuong.cHP > 0L && AutoKichSP.GetBossFullHp(brolyThuong) == 16070777L);
+	}
+
+	// Token: 0x06000D44 RID: 3396 RVA: 0x000C8C70 File Offset: 0x000C6E70
+	private static bool IsInHomeMap()
+	{
+		global::Char @char = global::Char.myCharz();
+		return @char != null && TileMap.mapID == @char.cgender + 21;
+	}
+
+	// Token: 0x06000D45 RID: 3397 RVA: 0x000C8C98 File Offset: 0x000C6E98
+	private static void HandleHomeChicken(long now)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null || @char.meDead || @char.cHP <= 0L)
+		{
+			return;
+		}
+		if (!AutoKichSP.IsInHomeMap())
+		{
+			return;
+		}
+		if (now - AutoKichSP.lastHomeChickenMs < 1200L)
+		{
+			return;
+		}
+		if (AutoKichSP.UseBagItemByTemplateId(73) || AutoKichSP.UseBagItemByTemplateId(74))
+		{
+			AutoKichSP.lastHomeChickenMs = now;
+			GameScr.info1.addInfo("KickSP: ở nhà ăn đùi gà", 0);
+		}
+	}
+
+	// Token: 0x06000D46 RID: 3398 RVA: 0x000C8D04 File Offset: 0x000C6F04
+	private static bool IsEquippedTemplateId(global::Char me, int templateId)
+	{
+		if (me == null || me.arrItemBody == null)
+		{
+			return false;
+		}
+		for (int i = 0; i < me.arrItemBody.Length; i++)
+		{
+			Item item = me.arrItemBody[i];
+			if (item != null && item.template != null && (int)item.template.id == templateId)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x06000D47 RID: 3399 RVA: 0x000C8D58 File Offset: 0x000C6F58
+	private static int FindBagItemSlotByTemplateIds(global::Char me, params int[] ids)
+	{
+		if (me == null || me.arrItemBag == null || ids == null)
+		{
+			return -1;
+		}
+		for (int i = 0; i < me.arrItemBag.Length; i++)
+		{
+			Item item = me.arrItemBag[i];
+			if (item != null && item.template != null)
+			{
+				int id = (int)item.template.id;
+				for (int j = 0; j < ids.Length; j++)
+				{
+					if (id == ids[j])
+					{
+						return i;
+					}
+				}
+			}
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D48 RID: 3400 RVA: 0x000C8DC0 File Offset: 0x000C6FC0
+	private static bool TryEquipInvisible449(global::Char me)
+	{
+		if (me == null)
+		{
+			return false;
+		}
+		if (AutoKichSP.IsEquippedTemplateId(me, 449))
+		{
+			return true;
+		}
+		int num = AutoKichSP.FindBagItemSlotByTemplateIds(me, new int[]
+		{
+			449
+		});
+		if (num < 0)
+		{
+			return false;
+		}
+		Service.gI().getItem(4, (sbyte)num);
+		GameScr.info1.addInfo("KickSP: mặc ct vô hình 449", 0);
+		return true;
+	}
+
+	// Token: 0x06000D49 RID: 3401 RVA: 0x000C8E1C File Offset: 0x000C701C
+	private static bool TryEquipCombatDisguise(global::Char me)
+	{
+		if (me == null)
+		{
+			return false;
+		}
+		if (AutoKichSP.IsEquippedDisguise524525(me))
+		{
+			return true;
+		}
+		int num = AutoKichSP.FindDisguise524525InBag(me);
+		if (num >= 0)
+		{
+			Service.gI().getItem(4, (sbyte)num);
+			GameScr.info1.addInfo("KickSP: mặc lại ct 524/525", 0);
+			return true;
+		}
+		return false;
+	}
+
+	// Token: 0x06000D4A RID: 3402 RVA: 0x000C8E64 File Offset: 0x000C7064
+	private static void RestoreDisguiseAfterLowHp(bool hadBossAtStart)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return;
+		}
+		if (hadBossAtStart && AutoKichSP.TryEquipCombatDisguise(@char))
+		{
+			return;
+		}
+		if (AutoKichSP.oldDisguiseTemplateId > 0 && AutoKichSP.oldDisguiseTemplateId != 449 && AutoKichSP.ReWearOldDisguise())
+		{
+			GameScr.info1.addInfo("KickSP: mặc lại cải trang cũ", 0);
+		}
+	}
+
+	// Token: 0x06000D4B RID: 3403 RVA: 0x000C8EB4 File Offset: 0x000C70B4
+	private static void EndLowHpProtect()
+	{
+		AutoKichSP.lowHpProtectRunning = false;
+		AutoKichSP.nextLowHpActionMs = 0L;
+		AutoKichSP.lowHpBossCharId = -1;
+		AutoKichSP.lowHpUsedInvisible = false;
+		AutoKichSP.lowHpUsedProtara = false;
+		AutoKichSP.lowHpSaiyanUsedSkill23 = false;
+		AutoKichSP.lowHpSaiyanUsedSkill8 = false;
+		AutoKichSP.lowHpNamekUsedSkill18 = false;
+		AutoKichSP.lowHpEquippedInvisible = false;
+		AutoKichSP.lowHpSaiyanSkill23Ms = 0L;
+		AutoKichSP.lowHpSaiyanCheckHpUntilMs = 0L;
+		AutoKichSP.lowHpSaiyanStartHp = 0L;
+		AutoKichSP.lowHpBossCharId = -1;
+		AutoKichSP.nextLowHpActionMs = mSystem.currentTimeMillis() + 2000L;
+	}
+
+	// Token: 0x06000D4C RID: 3404 RVA: 0x000074E3 File Offset: 0x000056E3
+	private static bool UsePotaraOrChickenAtHome()
+	{
+		if (AutoKichSP.IsInHomeMap())
+		{
+			return AutoKichSP.UseBagItemByTemplateId(73) || AutoKichSP.UseBagItemByTemplateId(74);
+		}
+		return AutoKichSP.UsePotara();
+	}
+
+	// Token: 0x06000D4D RID: 3405 RVA: 0x00007504 File Offset: 0x00005704
+	private static bool IsTrainingArmor(int id)
+	{
+		return id == 529 || id == 530 || id == 531 || id == 534 || id == 535 || id == 536 || id == 1716;
+	}
+
+	// Token: 0x06000D4E RID: 3406 RVA: 0x000C8F24 File Offset: 0x000C7124
+	private static int GetTrainingArmorPriority(int id)
+	{
+		if (id == 1716)
+		{
+			return 4;
+		}
+		if (id == 536)
+		{
+			return 3;
+		}
+		if (id == 535)
+		{
+			return 2;
+		}
+		if (id == 534)
+		{
+			return 1;
+		}
+		if (id == 531)
+		{
+			return 4;
+		}
+		if (id == 530)
+		{
+			return 3;
+		}
+		if (id == 529)
+		{
+			return 2;
+		}
+		return 0;
+	}
+
+	// Token: 0x06000D4F RID: 3407 RVA: 0x000C8F78 File Offset: 0x000C7178
+	private static bool RetryAttackIfBossHpNotChanged(global::Char boss, long now)
+	{
+		if (boss == null || boss.cHP <= 0L)
+		{
+			return false;
+		}
+		if (AutoKichSP.extraRetryUsedForCurrentBoss)
+		{
+			return false;
+		}
+		int retrySkillIdByClass = AutoKichSP.GetRetrySkillIdByClass();
+		if (retrySkillIdByClass < 0)
+		{
+			return false;
+		}
+		if (!AutoKichSP.UseSkillAttackBoss(boss, retrySkillIdByClass))
+		{
+			return false;
+		}
+		AutoKichSP.extraRetryUsedForCurrentBoss = true;
+		AutoKichSP.lastAutoCmdMs = now;
+		AutoKichSP.lastBossHitMs = now;
+		AutoKichSP.waitUntilMs = now + 350L;
+		GameScr.info1.addInfo("KickSP: boss không tụt HP, dùng skill " + retrySkillIdByClass + " và đánh lại", 0);
+		return true;
+	}
+
+	// Token: 0x06000D50 RID: 3408 RVA: 0x000C8FF4 File Offset: 0x000C71F4
+	private static int GetRetrySkillIdByClass()
+	{
+		int myClassType = AutoKichSP.GetMyClassType();
+		if (myClassType == 2)
+		{
+			return 21;
+		}
+		if (myClassType == 1)
+		{
+			return 22;
+		}
+		if (myClassType == 0)
+		{
+			return 18;
+		}
+		return -1;
+	}
+
+	// Token: 0x06000D51 RID: 3409 RVA: 0x000C901C File Offset: 0x000C721C
+	private static long GetMyPower()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return -1L;
+		}
+		object obj = AutoKichSP.TryGetFieldValue(@char, "cPower");
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(@char, "power");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(@char, "cPower");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(@char, "power");
+		}
+		long result;
+		try
+		{
+			result = ((obj != null) ? Convert.ToInt64(obj) : -1L);
+		}
+		catch
+		{
+			result = -1L;
+		}
+		return result;
+	}
+
+	// Token: 0x06000D52 RID: 3410 RVA: 0x000C9098 File Offset: 0x000C7298
+	private static long GetMyPotential()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return -1L;
+		}
+		object obj = AutoKichSP.TryGetFieldValue(@char, "cTiemNang");
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(@char, "tiemNang");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetFieldValue(@char, "potential");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(@char, "cTiemNang");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(@char, "tiemNang");
+		}
+		if (obj == null)
+		{
+			obj = AutoKichSP.TryGetPropertyValue(@char, "potential");
+		}
+		long result;
+		try
+		{
+			result = ((obj != null) ? Convert.ToInt64(obj) : -1L);
+		}
+		catch
+		{
+			result = -1L;
+		}
+		return result;
+	}
+
+	// Token: 0x06000D53 RID: 3411 RVA: 0x000C9130 File Offset: 0x000C7330
+	private static bool TryGetLockedMapZone(out int lockedMap, out int lockedZone)
+	{
+		lockedMap = -1;
+		lockedZone = -1;
+		string teamLock = DataAccount.TeamLock;
+		if (string.IsNullOrEmpty(teamLock))
+		{
+			return false;
+		}
+		string[] array = teamLock.Split(new char[]
+		{
+			'|'
+		});
+		return array.Length == 2 && int.TryParse(array[0], out lockedMap) && int.TryParse(array[1], out lockedZone) && lockedMap >= 0 && lockedZone >= 0;
+	}
+
+	// Token: 0x06000D54 RID: 3412 RVA: 0x000C9190 File Offset: 0x000C7390
+	private static bool IsLockedToSpecificMapZone()
+	{
+		int num;
+		int num2;
+		return AutoKichSP.TryGetLockedMapZone(out num, out num2);
+	}
+
+	// Token: 0x06000D55 RID: 3413 RVA: 0x000C91A8 File Offset: 0x000C73A8
+	private static bool IsAtLockedMapZone()
+	{
+		int num;
+		int num2;
+		return AutoKichSP.TryGetLockedMapZone(out num, out num2) && TileMap.mapID == num && TileMap.zoneID == num2;
+	}
+
+	// Token: 0x06000D56 RID: 3414 RVA: 0x000C91D4 File Offset: 0x000C73D4
+	private static void ApplyLockedMapZone(long now)
+	{
+		int num;
+		int num2;
+		if (!AutoKichSP.TryGetLockedMapZone(out num, out num2))
+		{
+			return;
+		}
+		AutoKichSP.targetMap = num;
+		AutoKichSP.targetZone = num2;
+		if (TileMap.mapID != num)
+		{
+			if (now - AutoKichSP.lastSwitchMapMs >= 1500L)
+			{
+				AutoKichSP.RunToMap(num);
+				AutoKichSP.lastSwitchMapMs = now;
+				AutoKichSP.waitUntilMs = now + 700L;
+				GameScr.info1.addInfo("KickSP lock map: " + num, 0);
+			}
+			return;
+		}
+		if (TileMap.zoneID != num2 && now - AutoKichSP.lastChangeZoneMs >= 1200L)
+		{
+			Service.gI().requestChangeZone(num2, -1);
+			AutoKichSP.lastChangeZoneMs = now;
+			AutoKichSP.waitUntilMs = now + 500L;
+			GameScr.info1.addInfo("KickSP lock zone: " + num2, 0);
+		}
+	}
+
+	// Token: 0x06000D57 RID: 3415 RVA: 0x000C9298 File Offset: 0x000C7498
+	private static int GetArmorValue(Item item)
+	{
+		int num = 0;
+		try
+		{
+			if (item == null || item.itemOption == null)
+			{
+				return 0;
+			}
+			for (int i = 0; i < item.itemOption.Length; i++)
+			{
+				ItemOption itemOption = item.itemOption[i];
+				if (itemOption != null)
+				{
+					string text = "";
+					string text2 = "";
+					string text3 = "";
+					try
+					{
+						text = itemOption.getOptionString();
+					}
+					catch
+					{
+					}
+					try
+					{
+						text2 = itemOption.getOptionName();
+					}
+					catch
+					{
+					}
+					try
+					{
+						text3 = ((itemOption.optionTemplate != null) ? itemOption.optionTemplate.name : "");
+					}
+					catch
+					{
+					}
+					string text4 = (text ?? "").ToLower();
+					string text5 = (text2 ?? "").ToLower();
+					string text6 = (text3 ?? "").ToLower();
+					if ((text4.Contains("giáp") || text4.Contains("armor") || text5.Contains("giáp") || text5.Contains("armor") || text6.Contains("giáp") || text6.Contains("armor")) && itemOption.param > num)
+					{
+						num = itemOption.param;
+					}
+				}
+			}
+		}
+		catch
+		{
+		}
+		return num;
+	}
+
+	// Token: 0x06000D58 RID: 3416 RVA: 0x00007540 File Offset: 0x00005740
+	private static int Abs(int v)
+	{
+		if (v >= 0)
+		{
+			return v;
+		}
+		return -v;
+	}
+
+	// Token: 0x06000D59 RID: 3417 RVA: 0x000C943C File Offset: 0x000C763C
+	private static int ClampMapX(int x)
+	{
+		if (x < 48)
+		{
+			return 48;
+		}
+		int num = TileMap.pxw - 48;
+		if (x > num)
+		{
+			return num;
+		}
+		return x;
+	}
+
+	// Token: 0x06000D5A RID: 3418 RVA: 0x000C9464 File Offset: 0x000C7664
+	private static int FindGroundYNearX(int x, int fallbackY)
+	{
+		x = AutoKichSP.ClampMapX(x);
+		int num = -1;
+		int num2 = int.MaxValue;
+		for (int i = 24; i < TileMap.pxh; i += 24)
+		{
+			if (TileMap.tileTypeAt(x, i, 2))
+			{
+				int num3 = AutoKichSP.Abs(i - fallbackY);
+				if (num3 < num2)
+				{
+					num2 = num3;
+					num = i;
+				}
+			}
+		}
+		if (num >= 0)
+		{
+			return num;
+		}
+		return fallbackY;
+	}
+
+	// Token: 0x06000D5B RID: 3419 RVA: 0x0000754A File Offset: 0x0000574A
+	private static bool IsCornered(global::Char me)
+	{
+		return me != null && (me.cx <= 100 || me.cx >= TileMap.pxw - 100);
+	}
+
+	// Token: 0x06000D5C RID: 3420 RVA: 0x000C94B8 File Offset: 0x000C76B8
+	private static int FindSafeStandXAroundBoss(global::Char me, global::Char boss, int desiredDistance)
+	{
+		if (me == null || boss == null)
+		{
+			return -1;
+		}
+		int[] array = new int[]
+		{
+			0,
+			98,
+			102,
+			96,
+			104,
+			92,
+			108,
+			88,
+			112,
+			84,
+			116,
+			80,
+			120
+		};
+		array[0] = desiredDistance;
+		bool flag = me.cx < boss.cx;
+		foreach (int num in array)
+		{
+			int num2 = AutoKichSP.ClampMapX(boss.cx - num);
+			int num3 = AutoKichSP.FindGroundYNearX(num2, me.cy);
+			int num4 = AutoKichSP.ClampMapX(boss.cx + num);
+			int num5 = AutoKichSP.FindGroundYNearX(num4, me.cy);
+			bool flag2 = AutoKichSP.Abs(num3 - me.cy) <= 72;
+			bool flag3 = AutoKichSP.Abs(num5 - me.cy) <= 72;
+			if (flag)
+			{
+				if (flag2)
+				{
+					return num2;
+				}
+				if (flag3)
+				{
+					return num4;
+				}
+			}
+			else
+			{
+				if (flag3)
+				{
+					return num4;
+				}
+				if (flag2)
+				{
+					return num2;
+				}
+			}
+		}
+		return AutoKichSP.ClampMapX(AutoKichSP.CalcOldKeepDistanceX(me, boss, desiredDistance));
+	}
+
+	// Token: 0x06000D5D RID: 3421 RVA: 0x000C95A0 File Offset: 0x000C77A0
+	private static bool TryTeleportCrossBoss(global::Char me, global::Char boss, long now, int desiredDistance)
+	{
+		if (me == null || boss == null)
+		{
+			return false;
+		}
+		if (now - AutoKichSP.lastTeleMs < 900L)
+		{
+			return false;
+		}
+		int num = (me.cx <= boss.cx) ? 1 : -1;
+		int fallbackY = AutoKichSP.FindGroundYNearX(boss.cx, boss.cy);
+		int[] array = new int[]
+		{
+			0,
+			105,
+			110,
+			115,
+			120,
+			125,
+			130,
+			140,
+			150,
+			160,
+			170,
+			180,
+			190,
+			200
+		};
+		array[0] = desiredDistance;
+		foreach (int num2 in array)
+		{
+			int num3 = boss.cx + num * num2;
+			num3 = AutoKichSP.ClampMapX(num3);
+			if (num3 >= 80 && num3 <= TileMap.pxw - 80)
+			{
+				int num4 = AutoKichSP.FindGroundYNearX(num3, fallbackY);
+				if (AutoKichSP.CanStandAtX(num3, num4, 60) && !AutoKichSP.IsPortalPosition(num3, num4))
+				{
+					KsSupper.TelePortTo(num3, num4);
+					AutoKichSP.lastTeleMs = now;
+					AutoKichSP.lastAutoCmdMs = now;
+					AutoKichSP.nextMoveMs = now + 220L;
+					AutoKichSP.waitUntilMs = now + 180L;
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x06000D5E RID: 3422 RVA: 0x000C9698 File Offset: 0x000C7898
+	private static bool ShouldTeleportBecauseTerrain(global::Char me, global::Char boss, int targetX)
+	{
+		if (me == null || boss == null)
+		{
+			return false;
+		}
+		int num = AutoKichSP.Abs(AutoKichSP.FindGroundYNearX(targetX, me.cy) - me.cy);
+		int num2 = AutoKichSP.Abs(me.cx - boss.cx);
+		return num >= 84 || (num2 <= 55 && AutoKichSP.IsCornered(me));
+	}
+
+	// Token: 0x06000D5F RID: 3423 RVA: 0x000C96EC File Offset: 0x000C78EC
+	private static Skill GetSkillById(int id)
+	{
+		if (GameScr.onScreenSkill == null)
+		{
+			return null;
+		}
+		for (int i = 0; i < GameScr.onScreenSkill.Length; i++)
+		{
+			Skill skill = GameScr.onScreenSkill[i];
+			if (skill != null && skill.template != null && (int)skill.template.id == id)
+			{
+				return skill;
+			}
+		}
+		return null;
+	}
+
+	// Token: 0x06000D60 RID: 3424 RVA: 0x00007570 File Offset: 0x00005770
+	private static bool IsBrolyThuong(global::Char c)
+	{
+		return c != null && c.cHP > 0L && c.cName != null && c.cName.Contains("Broly") && !c.cName.Contains("Super");
+	}
+
+	// Token: 0x06000D61 RID: 3425 RVA: 0x000C9738 File Offset: 0x000C7938
+	private static void ForceFocusOnlyBroly(global::Char broly)
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return;
+		}
+		@char.npcFocus = null;
+		@char.mobFocus = null;
+		if (AutoKichSP.IsBrolyThuong(broly))
+		{
+			@char.charFocus = broly;
+			return;
+		}
+		if (!AutoKichSP.IsBrolyThuong(@char.charFocus))
+		{
+			@char.charFocus = null;
+		}
+	}
+
+	// Token: 0x06000D62 RID: 3426 RVA: 0x000C9784 File Offset: 0x000C7984
+	private static void ClearWrongFocusIfNeeded()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return;
+		}
+		@char.npcFocus = null;
+		@char.mobFocus = null;
+		if (!AutoKichSP.IsBrolyThuong(@char.charFocus))
+		{
+			@char.charFocus = null;
+		}
+	}
+
+	// Token: 0x06000D63 RID: 3427 RVA: 0x000C97C0 File Offset: 0x000C79C0
+	private static long GetBossBaseKey(global::Char boss)
+	{
+		if (boss == null)
+		{
+			return -1L;
+		}
+		string text = "";
+		try
+		{
+			text = ((boss.cName != null) ? boss.cName.Trim().ToLower() : "");
+		}
+		catch
+		{
+		}
+		long num = 0L;
+		for (int i = 0; i < text.Length; i++)
+		{
+			num = num * 131L + (long)((ulong)text[i]);
+		}
+		if (num < 0L)
+		{
+			num = -num;
+		}
+		num %= 100000L;
+		return (long)(TileMap.mapID + 1000) * 10000000000L + (long)(TileMap.zoneID + 100) * 100000L + num;
+	}
+
+	// Token: 0x06000D64 RID: 3428 RVA: 0x000C9870 File Offset: 0x000C7A70
+	private static void UpdateBossExitTimer(global::Char boss, long now)
+	{
+		if (boss == null || boss.cHP <= 0L)
+		{
+			return;
+		}
+		long myPower = AutoKichSP.GetMyPower();
+		long myPotential = AutoKichSP.GetMyPotential();
+		bool flag = false;
+		bool flag2 = false;
+		if (AutoKichSP.lastObservedBossHp >= 0L && boss.cHP < AutoKichSP.lastObservedBossHp)
+		{
+			flag = true;
+		}
+		if (AutoKichSP.lastObservedMyPower >= 0L && myPower > AutoKichSP.lastObservedMyPower)
+		{
+			flag2 = true;
+		}
+		if (AutoKichSP.lastObservedMyPotential >= 0L && myPotential > AutoKichSP.lastObservedMyPotential)
+		{
+			flag2 = true;
+		}
+		if (flag && flag2)
+		{
+			if (!AutoKichSP.bossReachedOneHp)
+			{
+				GameScr.info1.addInfo("KickSP: boss đã tụt HP và sức mạnh đã tăng, dừng đếm 10 phút", 0);
+			}
+			AutoKichSP.bossReachedOneHp = true;
+			AutoKichSP.lastObservedBossHp = boss.cHP;
+			AutoKichSP.lastObservedMyPower = myPower;
+			AutoKichSP.lastObservedMyPotential = myPotential;
+			return;
+		}
+		if (AutoKichSP.bossReachedOneHp)
+		{
+			return;
+		}
+		if (AutoKichSP.bossStuckStartMs <= 0L)
+		{
+			AutoKichSP.bossStuckStartMs = now;
+		}
+		if (600000L - (now - AutoKichSP.bossStuckStartMs) <= 0L)
+		{
+			GameScr.info1.addInfo("KickSP: quá 10 phút boss chưa tụt HP kèm tăng sức mạnh -> Main.exit", 0);
+			try
+			{
+				Main.exit();
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	// Token: 0x06000D65 RID: 3429 RVA: 0x000C9968 File Offset: 0x000C7B68
+	private static void TryBossProbeSkill(global::Char boss, long now)
+	{
+		if (boss == null || boss.cHP <= 0L)
+		{
+			return;
+		}
+		if (AutoKichSP.bossReachedOneHp)
+		{
+			return;
+		}
+		if (AutoKichSP.bossStuckStartMs <= 0L)
+		{
+			return;
+		}
+		if (AutoKichSP.waitingHpCheckAfterHit || AutoKichSP.hasHitCurrentBoss)
+		{
+			return;
+		}
+		if (AutoKichSP.pendingFarShot || AutoKichSP.pendingCloseAfterTele)
+		{
+			return;
+		}
+		if (now - AutoKichSP.bossStuckStartMs < 180000L)
+		{
+			return;
+		}
+		if (now - AutoKichSP.lastBossProbeSkillMs < 180000L)
+		{
+			return;
+		}
+		if (AutoKichSP.currentBossHitCount > 0)
+		{
+			return;
+		}
+		if (!AutoKichSP.HitBossOneTime(boss))
+		{
+			return;
+		}
+		AutoKichSP.lastBossProbeSkillMs = now;
+		AutoKichSP.currentBossHitCount = 1;
+		AutoKichSP.lastBossHitMs = now;
+		AutoKichSP.lastObservedBossHp = boss.cHP;
+		AutoKichSP.lastObservedMyPower = AutoKichSP.GetMyPower();
+		AutoKichSP.lastObservedMyPotential = AutoKichSP.GetMyPotential();
+		AutoKichSP.lastHitConfirmedByReward = false;
+		AutoKichSP.waitingHpCheckAfterHit = true;
+		AutoKichSP.nextCheckBossHpMs = now + 450L;
+		AutoKichSP.waitUntilMs = now + 180L;
+		GameScr.info1.addInfo("KickSP: cứu vãn sau 3 phút", 0);
+	}
+
+	// Token: 0x06000D66 RID: 3430 RVA: 0x000C9A4C File Offset: 0x000C7C4C
+	private static bool CanStandAtX(int x, int fallbackY, int maxDy)
+	{
+		x = AutoKichSP.ClampMapX(x);
+		int num = AutoKichSP.FindGroundYNearX(x, fallbackY);
+		return num >= 24 && num < TileMap.pxh - 24 && TileMap.tileTypeAt(x, num, 2) && AutoKichSP.Abs(num - fallbackY) <= maxDy;
+	}
+
+	// Token: 0x06000D67 RID: 3431 RVA: 0x000C9A94 File Offset: 0x000C7C94
+	private static int GetNextWalkXByTerrain(global::Char me, int targetX)
+	{
+		if (me == null)
+		{
+			return targetX;
+		}
+		int num = AutoKichSP.ClampMapX(me.cx);
+		targetX = AutoKichSP.ClampMapX(targetX);
+		if (AutoKichSP.Abs(targetX - num) <= 24)
+		{
+			return targetX;
+		}
+		int num2 = (targetX > num) ? 1 : -1;
+		int[] array = new int[]
+		{
+			48,
+			36,
+			24,
+			16
+		};
+		for (int i = 0; i < array.Length; i++)
+		{
+			int num3 = AutoKichSP.ClampMapX(num + num2 * array[i]);
+			if ((num2 > 0 && num3 > targetX) || (num2 < 0 && num3 < targetX))
+			{
+				num3 = targetX;
+			}
+			if (AutoKichSP.CanStandAtX(num3, me.cy, 60))
+			{
+				return num3;
+			}
+		}
+		for (int j = 12; j <= 120; j += 12)
+		{
+			int num4 = AutoKichSP.ClampMapX(num + num2 * j);
+			if (AutoKichSP.CanStandAtX(num4, me.cy, 72))
+			{
+				return num4;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000D68 RID: 3432 RVA: 0x000C9B60 File Offset: 0x000C7D60
+	private static bool MoveByTerrainToX(global::Char me, int targetX, long now)
+	{
+		if (me == null)
+		{
+			return false;
+		}
+		if (now < AutoKichSP.nextMoveMs)
+		{
+			return false;
+		}
+		targetX = AutoKichSP.ClampMapX(targetX);
+		int nextWalkXByTerrain = AutoKichSP.GetNextWalkXByTerrain(me, targetX);
+		if (AutoKichSP.Abs(nextWalkXByTerrain - me.cx) >= 10)
+		{
+			int y = AutoKichSP.FindGroundYNearX(nextWalkXByTerrain, me.cy);
+			KsSupper.Move(nextWalkXByTerrain, y);
+			AutoKichSP.lastAutoCmdMs = now;
+			AutoKichSP.nextMoveMs = now + 120L;
+			AutoKichSP.waitUntilMs = now + 100L;
+			return true;
+		}
+		if (AutoKichSP.Abs(targetX - me.cx) < 10)
+		{
+			return false;
+		}
+		if (AutoKichSP.CanStandAtX(targetX, me.cy, 120))
+		{
+			int y2 = AutoKichSP.FindGroundYNearX(targetX, me.cy);
+			KsSupper.Move(targetX, y2);
+			AutoKichSP.lastAutoCmdMs = now;
+			AutoKichSP.nextMoveMs = now + 120L;
+			AutoKichSP.waitUntilMs = now + 100L;
+			return true;
+		}
+		int num = (targetX > me.cx) ? 1 : -1;
+		int[] array = new int[]
+		{
+			24,
+			36,
+			48,
+			60
+		};
+		for (int i = 0; i < array.Length; i++)
+		{
+			int num2 = AutoKichSP.ClampMapX(me.cx + num * array[i]);
+			if (AutoKichSP.Abs(num2 - me.cx) >= 10 && AutoKichSP.CanStandAtX(num2, me.cy, 120))
+			{
+				int y3 = AutoKichSP.FindGroundYNearX(num2, me.cy);
+				KsSupper.Move(num2, y3);
+				AutoKichSP.lastAutoCmdMs = now;
+				AutoKichSP.nextMoveMs = now + 120L;
+				AutoKichSP.waitUntilMs = now + 100L;
+				return true;
+			}
+		}
+		int num3 = me.cx;
+		for (int j = 12; j <= 96; j += 12)
+		{
+			int num4 = AutoKichSP.ClampMapX(me.cx + num * j);
+			if (AutoKichSP.CanStandAtX(num4, me.cy, 140))
+			{
+				num3 = num4;
+				break;
+			}
+		}
+		if (AutoKichSP.Abs(num3 - me.cx) >= 10)
+		{
+			int y4 = AutoKichSP.FindGroundYNearX(num3, me.cy);
+			if (!AutoKichSP.IsPortalPosition(num3, y4))
+			{
+				KsSupper.TelePortTo(num3, y4);
+				AutoKichSP.lastTeleMs = now;
+				AutoKichSP.lastAutoCmdMs = now;
+				AutoKichSP.nextMoveMs = now + 180L;
+				AutoKichSP.waitUntilMs = now + 140L;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x06000D69 RID: 3433 RVA: 0x000C9D60 File Offset: 0x000C7F60
+	private static bool MoveBackTo100PxByTerrain(global::Char me, global::Char boss, long now)
+	{
+		if (me == null || boss == null || boss.cHP <= 0L)
+		{
+			return false;
+		}
+		int num = AutoKichSP.FindSafeStandXAroundBoss(me, boss, 100);
+		if (num < 0)
+		{
+			num = AutoKichSP.CalcOldKeepDistanceX(me, boss, 100);
+		}
+		num = AutoKichSP.ClampMapX(num);
+		int num2 = AutoKichSP.FindGroundYNearX(num, me.cy);
+		int num3 = AutoKichSP.Abs(me.cx - num);
+		int num4 = AutoKichSP.Abs(me.cy - num2);
+		if (num3 <= 20 && num4 <= 36)
+		{
+			return true;
+		}
+		if (AutoKichSP.ShouldTeleportBecauseTerrain(me, boss, num) && AutoKichSP.TryTeleportCrossBoss(me, boss, now, 100))
+		{
+			return false;
+		}
+		AutoKichSP.MoveByTerrainToX(me, num, now);
+		return false;
+	}
+
+	// Token: 0x06000D6A RID: 3434 RVA: 0x000075AE File Offset: 0x000057AE
+	private static string GetMapZoneKey(int mapId, int zoneId)
+	{
+		return mapId + "_" + zoneId;
+	}
+
+	// Token: 0x06000D6B RID: 3435 RVA: 0x000075C6 File Offset: 0x000057C6
+	private static void BlockMapZoneBecauseOfSuperBroly(int mapId, int zoneId, long now)
+	{
+		if (mapId < 0 || zoneId < 2)
+		{
+			return;
+		}
+		AutoKichSP.blockedSuperMapZones[AutoKichSP.GetMapZoneKey(mapId, zoneId)] = now + 120000L;
+	}
+
+	// Token: 0x06000D6C RID: 3436 RVA: 0x000C9DF4 File Offset: 0x000C7FF4
+	private static bool IsMapZoneBlockedBecauseOfSuperBroly(int mapId, int zoneId, long now)
+	{
+		if (zoneId < 2)
+		{
+			return false;
+		}
+		string mapZoneKey = AutoKichSP.GetMapZoneKey(mapId, zoneId);
+		long num;
+		if (AutoKichSP.blockedSuperMapZones.TryGetValue(mapZoneKey, out num))
+		{
+			if (num > now)
+			{
+				return true;
+			}
+			AutoKichSP.blockedSuperMapZones.Remove(mapZoneKey);
+		}
+		return false;
+	}
+
+	// Token: 0x06000D6D RID: 3437 RVA: 0x000C9E34 File Offset: 0x000C8034
+	private static int GetPreferredZoneForMapNotBlocked(int mapId, bool randomIfStayMap, long now)
+	{
+		int num = 0;
+		try
+		{
+			if (GameScr.gI().zones != null)
+			{
+				num = GameScr.gI().zones.Length;
+			}
+		}
+		catch
+		{
+			num = 0;
+		}
+		if (num < 3)
+		{
+			num = 10;
+		}
+		if (!randomIfStayMap)
+		{
+			if (!AutoKichSP.IsMapZoneBlockedBecauseOfSuperBroly(mapId, 2, now))
+			{
+				return 2;
+			}
+			for (int i = 3; i < num; i++)
+			{
+				if (!AutoKichSP.IsMapZoneBlockedBecauseOfSuperBroly(mapId, i, now))
+				{
+					return i;
+				}
+			}
+			return -1;
+		}
+		else
+		{
+			List<int> list = new List<int>();
+			for (int j = 2; j < num; j++)
+			{
+				if (!AutoKichSP.IsMapZoneBlockedBecauseOfSuperBroly(mapId, j, now))
+				{
+					list.Add(j);
+				}
+			}
+			if (list.Count > 0)
+			{
+				return list[AutoKichSP.random.Next(list.Count)];
+			}
+			return -1;
+		}
+	}
+
+	// Token: 0x06000D6E RID: 3438 RVA: 0x000C9EE8 File Offset: 0x000C80E8
+	private static bool UseSkill8Self()
+	{
+		global::Char @char = global::Char.myCharz();
+		Skill skillById = AutoKichSP.GetSkillById(8);
+		if (@char == null || skillById == null)
+		{
+			return false;
+		}
+		@char.npcFocus = null;
+		@char.mobFocus = null;
+		@char.charFocus = null;
+		@char.myskill = skillById;
+		Service.gI().selectSkill((int)skillById.template.id);
+		GameScr.gI().doSelectSkill(skillById, true);
+		GameScr.gI().doSelectSkill(skillById, true);
+		GameScr.gI().doSelectSkill(skillById, true);
+		AutoKichSP.lastAutoCmdMs = mSystem.currentTimeMillis();
+		return true;
+	}
+
+	// Token: 0x06000D6F RID: 3439 RVA: 0x000075EA File Offset: 0x000057EA
+	private static bool IsPortalPosition(int x, int y)
+	{
+		return x < 48 || x > TileMap.pxw - 48;
+	}
+
+	// Token: 0x06000D70 RID: 3440 RVA: 0x000C9F6C File Offset: 0x000C816C
+	private static bool HasDeTu()
+	{
+		global::Char @char = global::Char.myCharz();
+		if (@char == null)
+		{
+			return false;
+		}
+		try
+		{
+			object obj = AutoKichSP.TryGetFieldValue(@char, "havePet");
+			if (obj != null && Convert.ToBoolean(obj))
+			{
+				return true;
+			}
+		}
+		catch
+		{
+		}
+		try
+		{
+			FieldInfo field = typeof(GameScr).GetField("isDeTu", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+			object obj2 = (field != null) ? field.GetValue(null) : null;
+			if (obj2 != null && Convert.ToBoolean(obj2))
+			{
+				return true;
+			}
+		}
+		catch
+		{
+		}
+		if (@char.arrItemBox != null)
+		{
+			for (int i = 0; i < @char.arrItemBox.Length; i++)
+			{
+				if (@char.arrItemBox[i] != null && @char.arrItemBox[i].template != null && @char.arrItemBox[i].template.id == 455)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	// Token: 0x0400173B RID: 5947
+	private static long nextTickMs;
+
+	// Token: 0x0400173C RID: 5948
+	private static long nextMoveMs;
+
+	// Token: 0x0400173D RID: 5949
+	private static bool isEvading;
+
+	// Token: 0x0400173E RID: 5950
+	private static long nextEmergencyMs;
+
+	// Token: 0x0400173F RID: 5951
+	private static int lastMeX;
+
+	// Token: 0x04001740 RID: 5952
+	private static long lastAutoCmdMs;
+
+	// Token: 0x04001741 RID: 5953
+	private static long manualUntilMs;
+
+	// Token: 0x04001742 RID: 5954
+	private static int lastBrolyX;
+
+	// Token: 0x04001743 RID: 5955
+	private static long lastTeleMs;
+
+	// Token: 0x04001744 RID: 5956
+	public static bool Enabled;
+
+	// Token: 0x04001745 RID: 5957
+	private static readonly int[] MAPS;
+
+	// Token: 0x04001746 RID: 5958
+	private static int targetMap;
+
+	// Token: 0x04001747 RID: 5959
+	private static int targetZone;
+
+	// Token: 0x04001748 RID: 5960
+	private static long waitBossUntilMs;
+
+	// Token: 0x04001749 RID: 5961
+	private static long lastBossUniqueKey;
+
+	// Token: 0x0400174A RID: 5962
+	private static bool hasHitCurrentBoss;
+
+	// Token: 0x0400174B RID: 5963
+	private static int lastMap;
+
+	// Token: 0x0400174C RID: 5964
+	private static long lastSwitchMapMs;
+
+	// Token: 0x0400174D RID: 5965
+	private static long lastChangeZoneMs;
+
+	// Token: 0x0400174E RID: 5966
+	private static long waitUntilMs;
+
+	// Token: 0x0400174F RID: 5967
+	private static Random random;
+
+	// Token: 0x04001750 RID: 5968
+	private static long nextEquipMs;
+
+	// Token: 0x04001751 RID: 5969
+	private static long nextHotkeyMs;
+
+	// Token: 0x04001752 RID: 5970
+	private static long lastStartMs;
+
+	// Token: 0x04001753 RID: 5971
+	private static long lastStopMs;
+
+	// Token: 0x04001754 RID: 5972
+	private static long lastWaitJumpMs;
+
+	// Token: 0x04001755 RID: 5973
+	private static long lastHitTryMs;
+
+	// Token: 0x04001756 RID: 5974
+	private static int lastZoneMap;
+
+	// Token: 0x04001757 RID: 5975
+	private static readonly int[] ROUTE_ORDER;
+
+	// Token: 0x04001758 RID: 5976
+	private static long lastAntiDisconnectMoveMs;
+
+	// Token: 0x04001759 RID: 5977
+	private static bool antiMoveLeft;
+
+	// Token: 0x0400175A RID: 5978
+	private static int currentBossHitCount;
+
+	// Token: 0x0400175B RID: 5979
+	private static long lastBossHitMs;
+
+	// Token: 0x0400175C RID: 5980
+	private static long nextDisguiseEquipMs;
+
+	// Token: 0x0400175D RID: 5981
+	private static long nextReflectEquipMs;
+
+	// Token: 0x0400175E RID: 5982
+	private static bool lowHpProtectRunning;
+
+	// Token: 0x0400175F RID: 5983
+	private static long lowHpProtectStartMs;
+
+	// Token: 0x04001760 RID: 5984
+	private static bool lowHpUsedInvisible;
+
+	// Token: 0x04001761 RID: 5985
+	private static bool lowHpUsedProtara;
+
+	// Token: 0x04001762 RID: 5986
+	private static int oldDisguiseTemplateId;
+
+	// Token: 0x04001763 RID: 5987
+	private static long nextLowHpActionMs;
+
+	// Token: 0x04001764 RID: 5988
+	private static bool lowHpSaiyanUsedSkill23;
+
+	// Token: 0x04001765 RID: 5989
+	private static bool lowHpSaiyanUsedSkill8;
+
+	// Token: 0x04001766 RID: 5990
+	private static long lowHpSaiyanSkill23Ms;
+
+	// Token: 0x04001767 RID: 5991
+	private static int lowHpBossCharId;
+
+	// Token: 0x04001768 RID: 5992
+	private static long lastHomeChickenMs;
+
+	// Token: 0x04001769 RID: 5993
+	private static long lowHpSaiyanCheckHpUntilMs;
+
+	// Token: 0x0400176A RID: 5994
+	private static long lowHpSaiyanStartHp;
+
+	// Token: 0x0400176B RID: 5995
+	private static bool lowHpHadBossAtStart;
+
+	// Token: 0x0400176C RID: 5996
+	private static List<int> zone2UsedMaps;
+
+	// Token: 0x0400176D RID: 5997
+	private static long lastObservedBossHp;
+
+	// Token: 0x0400176E RID: 5998
+	private static bool waitingHpCheckAfterHit;
+
+	// Token: 0x0400176F RID: 5999
+	private static long nextCheckBossHpMs;
+
+	// Token: 0x04001770 RID: 6000
+	private static bool extraRetryUsedForCurrentBoss;
+
+	// Token: 0x04001771 RID: 6001
+	private static long lastObservedMyPower;
+
+	// Token: 0x04001772 RID: 6002
+	private static long lastObservedMyPotential;
+
+	// Token: 0x04001773 RID: 6003
+	private static bool lastHitConfirmedByReward;
+
+	// Token: 0x04001774 RID: 6004
+	private static long lastRewardCheckMs;
+
+	// Token: 0x04001775 RID: 6005
+	private static long nextPotaraUseMs;
+
+	// Token: 0x04001776 RID: 6006
+	private static long lastBossBaseKey;
+
+	// Token: 0x04001777 RID: 6007
+	private static long lastBossSpawnStamp;
+
+	// Token: 0x04001778 RID: 6008
+	private static long bossStuckStartMs;
+
+	// Token: 0x04001779 RID: 6009
+	private static bool bossReachedOneHp;
+
+	// Token: 0x0400177A RID: 6010
+	private static long lastBossProbeSkillMs;
+
+	// Token: 0x0400177B RID: 6011
+	private static bool pendingFarShot;
+
+	// Token: 0x0400177C RID: 6012
+	private static bool pendingCloseAfterTele;
+
+	// Token: 0x0400177D RID: 6013
+	private static long pendingCloseAfterTeleMs;
+
+	// Token: 0x0400177E RID: 6014
+	private static bool pendingMoveBackAfterClose;
+
+	// Token: 0x0400177F RID: 6015
+	private static long pendingMoveBackAfterCloseMs;
+
+	// Token: 0x04001780 RID: 6016
+	private static bool pendingFarShotAfterMove;
+
+	// Token: 0x04001781 RID: 6017
+	private static long pendingFarShotAfterMoveMs;
+
+	// Token: 0x04001782 RID: 6018
+	private static long currentBossSeenMs;
+
+	// Token: 0x04001783 RID: 6019
+	private static Dictionary<string, long> blockedSuperMapZones = new Dictionary<string, long>();
+
+	// Token: 0x04001784 RID: 6020
+	private const long SUPER_BLOCK_MS = 120000L;
+
+	// Token: 0x04001785 RID: 6021
+	private static long waitingForXmapLoadMs;
+
+	// Token: 0x04001786 RID: 6022
+	private static long lastDisguiseEquipTryMs;
+
+	// Token: 0x04001787 RID: 6023
+	private static bool lowHpNamekUsedSkill18;
+
+	// Token: 0x04001788 RID: 6024
+	private static bool waitingForFusion;
+
+	// Token: 0x04001789 RID: 6025
+	private static long fusionStartMs;
+
+	// Token: 0x0400178A RID: 6026
+	private static bool lowHpEquippedInvisible;
+
+	// Token: 0x02000132 RID: 306
+	private class MapCostInfo
+	{
+		// Token: 0x06000D71 RID: 3441 RVA: 0x000075FE File Offset: 0x000057FE
+		public MapCostInfo(int mapId, int cost)
+		{
+			this.MapId = mapId;
+			this.Cost = cost;
+		}
+
+		// Token: 0x0400178B RID: 6027
+		public int MapId;
+
+		// Token: 0x0400178C RID: 6028
+		public int Cost;
+	}
+}
